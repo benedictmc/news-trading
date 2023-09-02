@@ -17,6 +17,8 @@ class TradingSimulator():
         self.news_end_time = int(time.time()*1000)
         self.trades_df = self.__get_load_trades()
 
+        self.aggregation_window = '1S'
+
         # self.news_second_dict = self.create_news_time_dict(self.get_all_news())
         # self.live_news = {}
         # self.expiry_dict = {}
@@ -146,7 +148,7 @@ class TradingSimulator():
             self.trades_df['transact_time'] = pd.to_datetime(self.trades_df['transact_time'], unit='ms')
 
         # Round transact_time to the nearest second
-        self.trades_df['rounded_time'] = self.trades_df['transact_time'].dt.round('300S')
+        self.trades_df['rounded_time'] = self.trades_df['transact_time'].dt.round(self.aggregation_window)
 
         # Calculate the number of trades for each row
         self.trades_df['num_trades'] = self.trades_df['last_trade_id'] - self.trades_df['first_trade_id'] + 1
@@ -180,6 +182,9 @@ class TradingSimulator():
         # Rename the price column to avg_price
         agg_df.rename(columns={'price': 'avg_price'}, inplace=True)
 
+        agg_df.index = agg_df['rounded_time']
+        agg_df = agg_df.drop(columns=['rounded_time'])
+
         return agg_df
 
 
@@ -212,6 +217,7 @@ class TradingSimulator():
 
 x = TradingSimulator()
 agg_trades_df = x.aggregate_trades()
-x.plot_aggregated_trades(agg_trades_df)
+agg_trades_df.to_csv(f"data/aggregate/BTCUSDT-reduced-{x.aggregation_window}-aggTrades-2023-08.csv")
+# x.plot_aggregated_trades(agg_trades_df)
 
 agg_trades_df.to_csv("data/aggregate/BTCUSDT-aggTrades-2023-08.csv")
