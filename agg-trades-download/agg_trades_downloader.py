@@ -7,8 +7,8 @@ from azure.core.exceptions import ResourceNotFoundError
 import time
 
 dotenv.load_dotenv()
-ACCOUNT_KEY = os.environ['AZURE_STORAGE_CONNECTION_STRING']
-ACCOUNT_URL = "https://benslake.blob.core.windows.net"
+ACCOUNT_KEY = os.environ['AZURE_STORAGE_ACCOUNT_KEY']
+ACCOUNT_URL = os.environ['AZURE_STORAGE_ACCOUNT_URL']
 
 BLOB_CLIENT = BlobServiceClient(account_url=ACCOUNT_URL, credential=ACCOUNT_KEY)
 
