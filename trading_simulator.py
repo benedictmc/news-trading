@@ -214,6 +214,4 @@ x = TradingSimulator()
 agg_trades_df = x.aggregate_trades()
 x.plot_aggregated_trades(agg_trades_df)
 
-
-
 agg_trades_df.to_csv("data/aggregate/BTCUSDT-aggTrades-2023-08.csv")
