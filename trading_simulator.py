@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient, BlobClient
 from azure.core.exceptions import ResourceNotFoundError
 import io
+from agg_trades_downloader import retrieve_agg_trades
 
 load_dotenv()
 
@@ -175,7 +176,7 @@ class TradingSimulator():
 
         if reduced_trades_df is None:
 
-            agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath)
+            agg_trades_df = self.get_agg_trades()
             reduced_trades_df = self.__reduce_trades(agg_trades_df)
 
             if reduced_trades_df is None:
@@ -191,7 +192,19 @@ class TradingSimulator():
 
         return reduced_trades_df
         
+
+    def get_agg_trades(self):
         
+        agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath)
+
+        if agg_trades_df is None:
+            retrieve_agg_trades(self.symbol, self.date, self.interval)
+            agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath)
+
+
+        return agg_trades_df
+
+
     def __reduce_trades(self, agg_trades_df):
 
         if agg_trades_df is None:
@@ -244,29 +257,33 @@ class TradingSimulator():
         return agg_df
 
 
-    # def plot_reduced_trades(self, reduced_trades_df):
-    #     fig, ax1 = plt.subplots(figsize=(15, 8))
+    def plot_reduced_trades(self, df):
+        df = df.set_index('flooored_time')
+        df = df.loc['2023-07-01']
 
-    #     # Line plot for average price
-    #     ax1.plot(agg_df['rounded_time'], agg_df['avg_price'], color='b', label='Average Price', linewidth=2)
-    #     ax1.set_xlabel('Time')
-    #     ax1.set_ylabel('Average Price', color='b')
-    #     ax1.tick_params(axis='y', labelcolor='b')
+        fig, ax1 = plt.subplots(figsize=(15, 8))
 
-    #     ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-    #     width = (agg_df['rounded_time'].iloc[1] - agg_df['rounded_time'].iloc[0]).seconds / (3 * 86400)  # Width of bars based on the time difference between entries
+        # Line plot for average price (which is represented by the 'close' column in the resampled data)
+        ax1.plot(df.index, df['close'], color='b', label='Average Price', linewidth=2)
+        ax1.set_xlabel('Time')
+        ax1.set_ylabel('Average Price', color='b')
+        ax1.tick_params(axis='y', labelcolor='b')
 
-    #     # Bar plots for volumes
-    #     ax2.bar(agg_df['rounded_time'], agg_df['sum_asset_bought'], width=width, alpha=0.6, label='Bought Volume', color='g')
-    #     ax2.bar(agg_df['rounded_time'], -agg_df['sum_asset_sold'], width=width, alpha=0.6, label='Sold Volume', color='r')
-    #     ax2.set_ylabel('Volume', color='g')  # Green for bought volume
-    #     ax2.tick_params(axis='y', labelcolor='g')
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+        width = (df.index[1] - df.index[0]).seconds / (3 * 86400)
+        
+        # Bar plots for volumes
+        ax2.bar(df.index, df['sum_asset_bought_sum'], width=width, alpha=0.6, label='Bought Volume', color='g')
+        ax2.bar(df.index, -df['sum_asset_sold_sum'], width=width, alpha=0.6, label='Sold Volume', color='r')
+        ax2.set_ylabel('Volume', color='g')  # Green for bought volume
+        ax2.tick_params(axis='y', labelcolor='g')
 
-    #     # Title and show the plot
-    #     plt.title('Trade Dynamics Over Time')
-    #     fig.tight_layout()  # Otherwise the right y-label is slightly clipped
-    #     plt.legend(loc='upper left')
-    #     plt.show()
+        # Title and show the plot
+        plt.title('Trade Dynamics Over Time')
+        fig.tight_layout()  # Otherwise the right y-label is slightly clipped
+        plt.legend(loc='upper left')
+        plt.savefig('/mnt/data/trade_dynamics.png')
+        plt.show()
 
     
     def __retrieve_from_blob(self, blob_file_path):
@@ -282,14 +299,15 @@ class TradingSimulator():
         except ResourceNotFoundError:
             return None
 
-SYMBOLS = [ 'LRCUSDT','BTCUSDT','ZECUSDT','EOSUSDT','SOLUSDT','XEMUSDT','OPUSDT','SNXUSDT','1INCHUSDT','TRXUSDT','QTUMUSDT','AGIXUSDT','RUNEUSDT','FLOWUSDT','BNBUSDT','HFTUSDT','APTUSDT','ANKRUSDT','DOGEUSDT','ASTRUSDT','RDNTUSDT','STXUSDT','CTKUSDT','ETHUSDT','NEARUSDT','TUSDT','IOTXUSDT','GRTUSDT','UNIUSDT','ZRXUSDT','DYDXUSDT','ICPUSDT','NEOUSDT','BNXUSDT','SANDUSDT','EGLDUSDT','SSVUSDT','GTCUSDT','MASKUSDT','AMBUSDT','DARUSDT','CELOUSDT','AAVEUSDT','HBARUSDT','ARBUSDT','SXPUSDT','ANTUSDT','ZENUSDT','ICXUSDT','XTZUSDT','YFIUSDT','RSRUSDT','PEOPLEUSDT','DGBUSDT','LINKUSDT','GALUSDT','FTMUSDT','FXSUSDT','TLMUSDT','CELRUSDT','SUSHIUSDT','ALPHAUSDT','ARPAUSDT','HOOKUSDT','MINAUSDT','COTIUSDT','JOEUSDT','ENSUSDT','WOOUSDT','INJUSDT','SKLUSDT','USDCUSDT','IMXUSDT','SFPUSDT','DASHUSDT','MAGICUSDT','PERPUSDT','CTSIUSDT','CHZUSDT','QNTUSDT','LEVERUSDT','IOTAUSDT','IOSTUSDT','WAVESUSDT','TOMOUSDT','BLZUSDT','C98USDT','VETUSDT','ZILUSDT','GMTUSDT','DOTUSDT','ROSEUSDT','LDOUSDT','XLMUSDT','CFXUSDT','LITUSDT','XVSUSDT','OCEANUSDT','BANDUSDT','HOTUSDT','LTCUSDT','AVAXUSDT','ENJUSDT','GALAUSDT','BATUSDT','FETUSDT','BALUSDT','FILUSDT','KAVAUSDT','RNDRUSDT','LPTUSDT','AUDIOUSDT','ALGOUSDT','XRPUSDT','OGNUSDT','GMXUSDT','ACHUSDT','ONTUSDT','KLAYUSDT','REEFUSDT','AXSUSDT','HIGHUSDT','LINAUSDT','ALICEUSDT','DUSKUSDT','FLMUSDT','PHBUSDT','ATOMUSDT','MATICUSDT','LQTYUSDT','STORJUSDT','CKBUSDT','KNCUSDT','MKRUSDT','APEUSDT','API3USDT','NKNUSDT','RVNUSDT','CHRUSDT','MANAUSDT','CRVUSDT','STMXUSDT','ADAUSDT','ATAUSDT','STGUSDT','ARUSDT','IDUSDT','RLCUSDT','THETAUSDT','BLURUSDT','ONEUSDT','TRUUSDT','TRBUSDT','COMPUSDT','IDEXUSDT','SUIUSDT','EDUUSDT','MTLUSDT','1000PEPEUSDT','1000FLOKIUSDT','DENTUSDT','BCHUSDT','1000XECUSDT','JASMYUSDT','UMAUSDT','BELUSDT','1000SHIBUSDT','RADUSDT','XMRUSDT','1000LUNCUSDT','SPELLUSDT','KEYUSDT','COMBOUSDT','UNFIUSDT','CVXUSDT','ETCUSDT','MAVUSDT','MDTUSDT','XVGUSDT','NMRUSDT','BAKEUSDT','WLDUSDT','PENDLEUSDT','ARKMUSDT','AGLDUSDT','YGGUSDT','SEIUSDT' ]
-date = "2023-07"
+# SYMBOLS = [ 'LRCUSDT','BTCUSDT','ZECUSDT','EOSUSDT','SOLUSDT','XEMUSDT','OPUSDT','SNXUSDT','1INCHUSDT','TRXUSDT','QTUMUSDT','AGIXUSDT','RUNEUSDT','FLOWUSDT','BNBUSDT','HFTUSDT','APTUSDT','ANKRUSDT','DOGEUSDT','ASTRUSDT','RDNTUSDT','STXUSDT','CTKUSDT','ETHUSDT','NEARUSDT','TUSDT','IOTXUSDT','GRTUSDT','UNIUSDT','ZRXUSDT','DYDXUSDT','ICPUSDT','NEOUSDT','BNXUSDT','SANDUSDT','EGLDUSDT','SSVUSDT','GTCUSDT','MASKUSDT','AMBUSDT','DARUSDT','CELOUSDT','AAVEUSDT','HBARUSDT','ARBUSDT','SXPUSDT','ANTUSDT','ZENUSDT','ICXUSDT','XTZUSDT','YFIUSDT','RSRUSDT','PEOPLEUSDT','DGBUSDT','LINKUSDT','GALUSDT','FTMUSDT','FXSUSDT','TLMUSDT','CELRUSDT','SUSHIUSDT','ALPHAUSDT','ARPAUSDT','HOOKUSDT','MINAUSDT','COTIUSDT','JOEUSDT','ENSUSDT','WOOUSDT','INJUSDT','SKLUSDT','USDCUSDT','IMXUSDT','SFPUSDT','DASHUSDT','MAGICUSDT','PERPUSDT','CTSIUSDT','CHZUSDT','QNTUSDT','LEVERUSDT','IOTAUSDT','IOSTUSDT','WAVESUSDT','TOMOUSDT','BLZUSDT','C98USDT','VETUSDT','ZILUSDT','GMTUSDT','DOTUSDT','ROSEUSDT','LDOUSDT','XLMUSDT','CFXUSDT','LITUSDT','XVSUSDT','OCEANUSDT','BANDUSDT','HOTUSDT','LTCUSDT','AVAXUSDT','ENJUSDT','GALAUSDT','BATUSDT','FETUSDT','BALUSDT','FILUSDT','KAVAUSDT','RNDRUSDT','LPTUSDT','AUDIOUSDT','ALGOUSDT','XRPUSDT','OGNUSDT','GMXUSDT','ACHUSDT','ONTUSDT','KLAYUSDT','REEFUSDT','AXSUSDT','HIGHUSDT','LINAUSDT','ALICEUSDT','DUSKUSDT','FLMUSDT','PHBUSDT','ATOMUSDT','MATICUSDT','LQTYUSDT','STORJUSDT','CKBUSDT','KNCUSDT','MKRUSDT','APEUSDT','API3USDT','NKNUSDT','RVNUSDT','CHRUSDT','MANAUSDT','CRVUSDT','STMXUSDT','ADAUSDT','ATAUSDT','STGUSDT','ARUSDT','IDUSDT','RLCUSDT','THETAUSDT','BLURUSDT','ONEUSDT','TRUUSDT','TRBUSDT','COMPUSDT','IDEXUSDT','SUIUSDT','EDUUSDT','MTLUSDT','1000PEPEUSDT','1000FLOKIUSDT','DENTUSDT','BCHUSDT','1000XECUSDT','JASMYUSDT','UMAUSDT','BELUSDT','1000SHIBUSDT','RADUSDT','XMRUSDT','1000LUNCUSDT','SPELLUSDT','KEYUSDT','COMBOUSDT','UNFIUSDT','CVXUSDT','ETCUSDT','MAVUSDT','MDTUSDT','XVGUSDT','NMRUSDT','BAKEUSDT','WLDUSDT','PENDLEUSDT','ARKMUSDT','AGLDUSDT','YGGUSDT','SEIUSDT' ]
+# date = "2023-08"
 
 
-for symbol in SYMBOLS:
-    trading_simulator = TradingSimulator(symbol, date, load_source="blob")
-    trading_simulator.build_reduced_trades()
-    print(f"Symbol: {symbol} - Date: {date}")
-    print("RESULT:")
-    print(trading_simulator.reduced_trades_df.head())
+# for symbol in SYMBOLS:
+#     trading_simulator = TradingSimulator(symbol, date, load_source="blob")
+#     trading_simulator.build_reduced_trades()
+#     print(f"Symbol: {symbol} - Date: {date}")
+#     # print("RESULT:")
+#     # trading_simulator.plot_reduced_trades()
+#     # exit()
 

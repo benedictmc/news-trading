@@ -84,23 +84,20 @@ def download_binance_data(symbol, data_type, interval, date, save_path="local"):
         return success
     
 
-interval = "monthly"
-data_type = "aggTrades"
-date = "2023-07"
-
-for symbol in SYMBOLS:
+def retrieve_agg_trades(symbol, date, interval="monthly"):
+    data_type = "aggTrades"
 
     local_file_path = f"local/{symbol}-{data_type}-{date}.csv"
     container_file_path = f"{data_type}/{interval}/{symbol}/{symbol}-{data_type}-{date}.csv"
 
     if does_blob_exist(container_file_path):
-        continue
+        return
 
     # Downloading data
     success = download_binance_data(symbol, data_type, interval, date)
 
     if not success:
-        continue
+        return
 
     # Save to blob
     upload_to_blob(local_file_path, container_file_path)
@@ -109,6 +106,4 @@ for symbol in SYMBOLS:
     os.remove(local_file_path)
 
     print(f"Deleted csv file: {local_file_path}")
-
-    time.sleep(10)
 
