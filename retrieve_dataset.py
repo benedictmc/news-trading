@@ -11,7 +11,7 @@ from agg_trades_downloader import retrieve_agg_trades
 
 load_dotenv()
 
-NEWS_API_ENDPOINT = "https://news.treeofalpha.com/api"
+
 CONTAINER_NAME = "binancedata"
 BLOB_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 BLOB_SERVICE_CLIENT = BlobServiceClient.from_connection_string(BLOB_CONNECTION_STRING)
