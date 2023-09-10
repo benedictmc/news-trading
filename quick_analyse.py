@@ -1,4 +1,4 @@
-from trading_simulator import TradingSimulator
+from retrieve_dataset import TradingSimulator
 import pandas as pd
 import matplotlib.pyplot as plt
 

@@ -1,4 +1,4 @@
-from trading_simulator import TradingSimulator
+from retrieve_dataset import TradingSimulator
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -11,7 +11,6 @@ trading_simulator.build_reduced_trades()
 
 df = trading_simulator.reduced_trades_df
 df.reset_index(inplace=True)
-print(df.head())
 
 
 def plot_price_spikes(df):
@@ -55,8 +54,6 @@ def plot_price_spikes(df):
     plt.show()
     plt.savefig('price_spikes.png')
 
-
-plot_price_spikes(df)
 
 def plot_ohlc(df):
 
@@ -105,3 +102,24 @@ def plot_reduced_trades(df):
     plt.legend(loc='upper left')
     plt.savefig('trade_dynamics.png')
     plt.show()
+
+
+def plot_anomalous_time(df):
+    df = df[df["flooored_time"] > "2023-08-29 14:19:00"]
+    df = df.head(60*2)
+    df = df.set_index('flooored_time')
+
+    fig, ax1 = plt.subplots(figsize=(15, 8))
+
+
+    ax1.plot(df.index, df['avg_price'], color='b', label='Average Price', linewidth=2)
+    ax1.set_xlabel('Time')
+    ax1.set_ylabel('Average Price', color='b')
+    # Rotate labels 90 degrees
+    plt.xticks(rotation=90)
+    fig.tight_layout()  # Otherwise the right y-label is slightly clipped
+
+    plt.savefig('trade.png')
+    plt.show()
+
+plot_anomalous_time(df)
