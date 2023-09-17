@@ -48,16 +48,15 @@ class RetriveDataset():
         
         trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath, retrieve_type="trading dataset")
 
-        if trading_dataset_df is None:
+        if trading_dataset_df is None or "news_signal" not in trading_dataset_df.columns:
             reduced_trades_df = self.retrieve_reduced_trades()
             trading_dataset_df = self.add_indicators(reduced_trades_df)
-            trading_dataset_df = self.add_signal(reduced_trades_df)
+            trading_dataset_df = self.add_signal(trading_dataset_df)
+            trading_dataset_df = self.add_news_signals(trading_dataset_df)
 
             self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 
-        if "news_signal" not in trading_dataset_df.columns:
-            trading_dataset_df = self.add_news_signals(trading_dataset_df)
-
+            
         trading_dataset_df.reset_index(inplace=True)
 
         return trading_dataset_df
@@ -133,16 +132,15 @@ class RetriveDataset():
 
     def add_news_signals(self, df):
         
-        print(df.iloc[0].index)
-        print(df.iloc[-1].index)
+        start_time = df.index.values[0]
+        end_time = df.index.values[-1]
 
-        # start_time = "2023-08-01 00:00:00"
-        # end_time = "2023-09-01 00:00:00"
+        news_class = GetCryptoNews(start_time, end_time, symbol=self.symbol)
+        news_class.filter_news()
+        news_df = news_class.create_news_df()
 
-        # x = GetCryptoNews(start_time, end_time, symbol="APT_USDT")
-        # x.filter_news()
-        # # x.save_news()
-        # news_df = x.create_news_df()
+        df.index = pd.to_datetime(df.index)
+        df = pd.merge(df, news_df, left_index=True, right_index=True, how='outer')
 
         return df
 
@@ -233,9 +231,10 @@ class RetriveDataset():
 
 
 
-x = RetriveDataset("APTUSDT", "2023-08", 50, 0.005)
+# x = RetriveDataset("APTUSDT", "2023-08", 50, 0.005)
 
-x.retrieve_trading_dataset()
+# t_df = x.retrieve_trading_dataset()
+# print(t_df.head(20))
 
 # SYMBOLS = [ 'LRCUSDT','BTCUSDT','ZECUSDT','EOSUSDT','SOLUSDT','XEMUSDT','OPUSDT','SNXUSDT','1INCHUSDT','TRXUSDT','QTUMUSDT','AGIXUSDT','RUNEUSDT','FLOWUSDT','BNBUSDT','HFTUSDT','APTUSDT','ANKRUSDT','DOGEUSDT','ASTRUSDT','RDNTUSDT','STXUSDT','CTKUSDT','ETHUSDT','NEARUSDT','TUSDT','IOTXUSDT','GRTUSDT','UNIUSDT','ZRXUSDT','DYDXUSDT','ICPUSDT','NEOUSDT','BNXUSDT','SANDUSDT','EGLDUSDT','SSVUSDT','GTCUSDT','MASKUSDT','AMBUSDT','DARUSDT','CELOUSDT','AAVEUSDT','HBARUSDT','ARBUSDT','SXPUSDT','ANTUSDT','ZENUSDT','ICXUSDT','XTZUSDT','YFIUSDT','RSRUSDT','PEOPLEUSDT','DGBUSDT','LINKUSDT','GALUSDT','FTMUSDT','FXSUSDT','TLMUSDT','CELRUSDT','SUSHIUSDT','ALPHAUSDT','ARPAUSDT','HOOKUSDT','MINAUSDT','COTIUSDT','JOEUSDT','ENSUSDT','WOOUSDT','INJUSDT','SKLUSDT','USDCUSDT','IMXUSDT','SFPUSDT','DASHUSDT','MAGICUSDT','PERPUSDT','CTSIUSDT','CHZUSDT','QNTUSDT','LEVERUSDT','IOTAUSDT','IOSTUSDT','WAVESUSDT','TOMOUSDT','BLZUSDT','C98USDT','VETUSDT','ZILUSDT','GMTUSDT','DOTUSDT','ROSEUSDT','LDOUSDT','XLMUSDT','CFXUSDT','LITUSDT','XVSUSDT','OCEANUSDT','BANDUSDT','HOTUSDT','LTCUSDT','AVAXUSDT','ENJUSDT','GALAUSDT','BATUSDT','FETUSDT','BALUSDT','FILUSDT','KAVAUSDT','RNDRUSDT','LPTUSDT','AUDIOUSDT','ALGOUSDT','XRPUSDT','OGNUSDT','GMXUSDT','ACHUSDT','ONTUSDT','KLAYUSDT','REEFUSDT','AXSUSDT','HIGHUSDT','LINAUSDT','ALICEUSDT','DUSKUSDT','FLMUSDT','PHBUSDT','ATOMUSDT','MATICUSDT','LQTYUSDT','STORJUSDT','CKBUSDT','KNCUSDT','MKRUSDT','APEUSDT','API3USDT','NKNUSDT','RVNUSDT','CHRUSDT','MANAUSDT','CRVUSDT','STMXUSDT','ADAUSDT','ATAUSDT','STGUSDT','ARUSDT','IDUSDT','RLCUSDT','THETAUSDT','BLURUSDT','ONEUSDT','TRUUSDT','TRBUSDT','COMPUSDT','IDEXUSDT','SUIUSDT','EDUUSDT','MTLUSDT','1000PEPEUSDT','1000FLOKIUSDT','DENTUSDT','BCHUSDT','1000XECUSDT','JASMYUSDT','UMAUSDT','BELUSDT','1000SHIBUSDT','RADUSDT','XMRUSDT','1000LUNCUSDT','SPELLUSDT','KEYUSDT','COMBOUSDT','UNFIUSDT','CVXUSDT','ETCUSDT','MAVUSDT','MDTUSDT','XVGUSDT','NMRUSDT','BAKEUSDT','WLDUSDT','PENDLEUSDT','ARKMUSDT','AGLDUSDT','YGGUSDT','SEIUSDT' ]
 

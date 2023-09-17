@@ -59,8 +59,8 @@ class GetCryptoNews():
         
         news_times = [pd.to_datetime(int(news_item['time']/1000), unit='s') for news_item in self.news] 
 
-        news_df['news'] = 0
-        news_df.loc[news_times, 'news'] = 1
+        news_df['news_signal'] = 0
+        news_df.loc[news_times, 'news_signal'] = 1
 
         return news_df
 
