@@ -202,8 +202,8 @@ class Backtester():
 
 from retrieve_dataset import RetriveDataset 
 
-date = "2023-07"
-symbol = "BTCUSDT"
+date = "2023-08"
+symbol = "APTUSDT"
 
 signal_window = 50
 signal_threshold = 0.005

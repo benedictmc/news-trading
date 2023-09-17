@@ -8,6 +8,7 @@ from azure.storage.blob import BlobServiceClient, BlobClient
 from azure.core.exceptions import ResourceNotFoundError
 import io
 from agg_trades_downloader import retrieve_agg_trades
+from retrieve_news import GetCryptoNews
 
 load_dotenv()
 
@@ -45,7 +46,7 @@ class RetriveDataset():
     
     def retrieve_trading_dataset(self):
         
-        trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath)
+        trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath, retrieve_type="trading dataset")
 
         if trading_dataset_df is None:
             reduced_trades_df = self.retrieve_reduced_trades()
@@ -54,13 +55,16 @@ class RetriveDataset():
 
             self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 
+        if "news_signal" not in trading_dataset_df.columns:
+            trading_dataset_df = self.add_news_signals(trading_dataset_df)
+
         trading_dataset_df.reset_index(inplace=True)
 
         return trading_dataset_df
 
 
     def retrieve_reduced_trades(self):
-        reduced_trades_df = self.__retrieve_from_blob(self.reduced_trades_filepath)
+        reduced_trades_df = self.__retrieve_from_blob(self.reduced_trades_filepath, retrieve_type="reduced trades")
 
         if reduced_trades_df is None:
             print("Could not retrieve reduced trades from blob")
@@ -104,11 +108,11 @@ class RetriveDataset():
 
     def get_agg_trades(self):
         
-        agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath)
+        agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath, "agg trades")
 
         if agg_trades_df is None:
             retrieve_agg_trades(self.symbol, self.date, self.interval)
-            agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath)
+            agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath, "agg trades")
 
         return agg_trades_df
 
@@ -126,6 +130,22 @@ class RetriveDataset():
         
         return df
     
+
+    def add_news_signals(self, df):
+        
+        print(df.iloc[0].index)
+        print(df.iloc[-1].index)
+
+        # start_time = "2023-08-01 00:00:00"
+        # end_time = "2023-09-01 00:00:00"
+
+        # x = GetCryptoNews(start_time, end_time, symbol="APT_USDT")
+        # x.filter_news()
+        # # x.save_news()
+        # news_df = x.create_news_df()
+
+        return df
+
 
     def add_signal(self, df):
         df['signal'] = 0  # Initialize with 0
@@ -196,7 +216,8 @@ class RetriveDataset():
         return agg_df
 
    
-    def __retrieve_from_blob(self, blob_file_path):
+    def __retrieve_from_blob(self, blob_file_path, retrieve_type=""):
+        print(f"Attempting to retrieve {retrieve_type} from blob...")
         try:
             retrieve_file = BLOB_SERVICE_CLIENT.get_blob_client(container=CONTAINER_NAME, blob=blob_file_path)    
                     
@@ -207,9 +228,14 @@ class RetriveDataset():
             return df
         
         except ResourceNotFoundError:
+            print(f"{retrieve_type} does not exist in blob")
             return None
 
 
+
+x = RetriveDataset("APTUSDT", "2023-08", 50, 0.005)
+
+x.retrieve_trading_dataset()
 
 # SYMBOLS = [ 'LRCUSDT','BTCUSDT','ZECUSDT','EOSUSDT','SOLUSDT','XEMUSDT','OPUSDT','SNXUSDT','1INCHUSDT','TRXUSDT','QTUMUSDT','AGIXUSDT','RUNEUSDT','FLOWUSDT','BNBUSDT','HFTUSDT','APTUSDT','ANKRUSDT','DOGEUSDT','ASTRUSDT','RDNTUSDT','STXUSDT','CTKUSDT','ETHUSDT','NEARUSDT','TUSDT','IOTXUSDT','GRTUSDT','UNIUSDT','ZRXUSDT','DYDXUSDT','ICPUSDT','NEOUSDT','BNXUSDT','SANDUSDT','EGLDUSDT','SSVUSDT','GTCUSDT','MASKUSDT','AMBUSDT','DARUSDT','CELOUSDT','AAVEUSDT','HBARUSDT','ARBUSDT','SXPUSDT','ANTUSDT','ZENUSDT','ICXUSDT','XTZUSDT','YFIUSDT','RSRUSDT','PEOPLEUSDT','DGBUSDT','LINKUSDT','GALUSDT','FTMUSDT','FXSUSDT','TLMUSDT','CELRUSDT','SUSHIUSDT','ALPHAUSDT','ARPAUSDT','HOOKUSDT','MINAUSDT','COTIUSDT','JOEUSDT','ENSUSDT','WOOUSDT','INJUSDT','SKLUSDT','USDCUSDT','IMXUSDT','SFPUSDT','DASHUSDT','MAGICUSDT','PERPUSDT','CTSIUSDT','CHZUSDT','QNTUSDT','LEVERUSDT','IOTAUSDT','IOSTUSDT','WAVESUSDT','TOMOUSDT','BLZUSDT','C98USDT','VETUSDT','ZILUSDT','GMTUSDT','DOTUSDT','ROSEUSDT','LDOUSDT','XLMUSDT','CFXUSDT','LITUSDT','XVSUSDT','OCEANUSDT','BANDUSDT','HOTUSDT','LTCUSDT','AVAXUSDT','ENJUSDT','GALAUSDT','BATUSDT','FETUSDT','BALUSDT','FILUSDT','KAVAUSDT','RNDRUSDT','LPTUSDT','AUDIOUSDT','ALGOUSDT','XRPUSDT','OGNUSDT','GMXUSDT','ACHUSDT','ONTUSDT','KLAYUSDT','REEFUSDT','AXSUSDT','HIGHUSDT','LINAUSDT','ALICEUSDT','DUSKUSDT','FLMUSDT','PHBUSDT','ATOMUSDT','MATICUSDT','LQTYUSDT','STORJUSDT','CKBUSDT','KNCUSDT','MKRUSDT','APEUSDT','API3USDT','NKNUSDT','RVNUSDT','CHRUSDT','MANAUSDT','CRVUSDT','STMXUSDT','ADAUSDT','ATAUSDT','STGUSDT','ARUSDT','IDUSDT','RLCUSDT','THETAUSDT','BLURUSDT','ONEUSDT','TRUUSDT','TRBUSDT','COMPUSDT','IDEXUSDT','SUIUSDT','EDUUSDT','MTLUSDT','1000PEPEUSDT','1000FLOKIUSDT','DENTUSDT','BCHUSDT','1000XECUSDT','JASMYUSDT','UMAUSDT','BELUSDT','1000SHIBUSDT','RADUSDT','XMRUSDT','1000LUNCUSDT','SPELLUSDT','KEYUSDT','COMBOUSDT','UNFIUSDT','CVXUSDT','ETCUSDT','MAVUSDT','MDTUSDT','XVGUSDT','NMRUSDT','BAKEUSDT','WLDUSDT','PENDLEUSDT','ARKMUSDT','AGLDUSDT','YGGUSDT','SEIUSDT' ]
 
