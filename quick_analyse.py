@@ -1,83 +1,32 @@
-from retrieve_dataset import TradingSimulator
-import pandas as pd
-import matplotlib.pyplot as plt
+import json
+import os
 
-symbol = "BTCUSDT"
-date = "2023-08"
+all_shorts = {}
 
-trading_simulator = TradingSimulator(symbol, date, load_source="blob")
-trading_simulator.build_reduced_trades()
-df = trading_simulator.reduced_trades_df
-df.reset_index(inplace=True)
+for coin in os.listdir('local/results'):
+    for indicator in os.listdir(f'local/results/{coin}'):
+        if 'trade_list.json' in os.listdir(f'local/results/{coin}/{indicator}'):
+            with open(f'local/results/{coin}/{indicator}/trade_list.json', 'r') as f:
+                trades = json.load(f)
+            for trade in trades:
+                if 'position_type' not in trade:
+                    continue
 
-
-def percentage_change(old, new):
-    """Calculate the percentage change between two numbers."""
-    return ((new - old) / old) * 100
-
-
-def isolate_spikes(df, change_column, cool_down_seconds=600, top_n=100):
-    """
-    Isolate significant price changes (spikes) from a DataFrame.
-
-    Parameters:
-    - df (pd.DataFrame): The input DataFrame. Must have datetime as index.
-    - change_column (str): Name of the column containing percentage changes.
-    - cool_down_seconds (int): Number of seconds to wait before detecting another spike.
-    - top_n (int): Number of top isolated spikes to return.
-
-    Returns:
-    - pd.DataFrame: DataFrame containing the isolated spikes.
-    """
-    
-    # Sort data by absolute change
-    sorted_df = df.sort_values(by=change_column, key=abs, ascending=False)
-    
-    # To store rows corresponding to the initial moments of the spikes
-    spike_rows = []
-
-    # Track the last detected spike timestamp
-    last_detected_spike = None
-
-    for index, row in sorted_df.iterrows():
-        if last_detected_spike is None or (index - last_detected_spike > pd.Timedelta(seconds=cool_down_seconds)):
-            spike_rows.append(row)
-            last_detected_spike = index
-
-            # Break once we've detected the desired number of spikes
-            if len(spike_rows) == top_n:
-                break
-
-    # Convert spike_rows list to a DataFrame
-    spike_df = pd.DataFrame(spike_rows)
-
-    return spike_df
-
-
-
-# Convert 'flooored_time' column to datetime format
-df['flooored_time'] = pd.to_datetime(df['flooored_time'])
-
-# Set 'flooored_time' as the index
-df.set_index('flooored_time', inplace=True)
-
-# Resample at 1 second frequency and forward fill the 'avg_price' column
-df_resampled = df.resample('1S').first()
-df_resampled['avg_price'] = df_resampled['avg_price'].ffill()
-
-# Add a column that calculates the percentage change in price every 10 minutes
-df_resampled['percentage_change_20sec'] = percentage_change(df_resampled['avg_price'].shift(20), df_resampled['avg_price'])
-
-df_resampled['price_minus_20sec'] = df_resampled['avg_price'].shift(20)
-
-# Compute the absolute value of 'percentage_change_20sec'
-# df_resampled['abs_percentage_change_20sec'] = df_resampled['percentage_change_20sec'].abs()
-
-df_resampled.to_csv("df_resampled.csv")
+                if trade['position_type'] == 'short':
+                    all_shorts[trade['max_neg_pct_change']] = f'local/results/{coin}/{indicator}/trade_list.json'
 
 
 
 
+
+
+# Sort keys of dictionary keep track of the order
+
+sorted_dict = dict(sorted(all_shorts.items()))
+
+                
+for k, val in sorted_dict.items():
+    print(k, val)
 
 
 

@@ -52,6 +52,8 @@ class Backtester():
             trade_dict["window_start_time"] = str(trade_index - pd.Timedelta(seconds=self.signal_window))
             trade_dict["position_type"] = 'long' if signal_row['signal'] == 1 else 'short'
             trade_dict["entry_price"] = signal_row['avg_price']
+            trade_dict["sl_price"] = trade_dict["entry_price"] * 0.975
+            trade_dict["tp_price"] = trade_dict["entry_price"] * 1.05
 
 
             print(f"> Starting {position_type} position at {entry_price}")
@@ -62,8 +64,6 @@ class Backtester():
             max_neg_pct_change = 99999
 
             for index, row in signal_df.iterrows():
-                # print(f"> At time {index} price is {row['avg_price']}")
-                # print(f"> Time past is since trade {time_past}")
                 pct_change = round((row['avg_price'] - entry_price) / entry_price, 6)
 
                 current_max_pos_pct_change = max_pos_pct_change
@@ -81,7 +81,21 @@ class Backtester():
                     trade_dict["max_neg_pct_change"] = max_neg_pct_change
                     trade_dict["max_neg_pct_change_time"] = str(index)
                     trade_dict["max_neg_pct_change_time_past"] = time_past
+                
+                print("***********")
+                print(f"> Entry price is {entry_price} after {time_past} seconds. Type is {position_type}")
+                print(f"> Current price is {row['avg_price']}")
+                print(f"> Current pct change is {pct_change}")
+                print(f"> Stop loss price is {trade_dict['sl_price']}")
+                print(f"> Take profit price is {trade_dict['tp_price']}")
+                print(f"> Number of buy trades is {row.num_of_trades_bought}")
+                print(f"> Number of sell trades is {row.num_of_trades_sold}")
+                print(f"Volume of asset bought is {row.sum_asset_bought}")
+                print(f"Volume of asset sold is {row.sum_asset_sold}")
 
+                print(f"> Number of buy trades is {row.num_of_trades_bought}")
+
+                time.sleep(1)
                 time_past += 1
                 
                 # Break trade if time_past is 5 minutes
@@ -189,7 +203,7 @@ class Backtester():
 from retrieve_dataset import RetriveDataset 
 
 date = "2023-07"
-symbol = "ETHUSDT"
+symbol = "BTCUSDT"
 
 signal_window = 50
 signal_threshold = 0.005
