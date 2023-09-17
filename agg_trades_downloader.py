@@ -85,6 +85,7 @@ def download_binance_data(symbol, data_type, interval, date, save_path="local"):
     
 
 def retrieve_agg_trades(symbol, date, interval="monthly"):
+    print(f"Retrieving {symbol} agg trades for {date}...")
     data_type = "aggTrades"
 
     local_file_path = f"local/{symbol}-{data_type}-{date}.csv"
