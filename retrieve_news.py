@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime, timezone 
 import pandas as pd
-
+import numpy
 
 NEWS_API_ENDPOINT = "https://news.treeofalpha.com/api"
 
@@ -13,7 +13,8 @@ class GetCryptoNews():
 
     def __init__(self, start_time:str, end_time:str, symbol:str="BTC_USDT"):
         self.symbol = symbol
-        self.start_timestamp = int(datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+        self.start_timestamp = int(datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp() * 1000)
         self.end_timestamp = int(datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp() * 1000)
         self.symbol_set = set()
 

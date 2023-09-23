@@ -8,11 +8,13 @@ import json
 
 class Backtester():
 
-    def __init__(self, data, singal_window, signal_threshold, inital_capital):
+    def __init__(self, data, singal_window, signal_threshold, symbol, date, inital_capital=100000):
         self.data = data
         self.inital_capital = inital_capital
         self.signal_window = singal_window
         self.signal_threshold = signal_threshold
+        self.symbol = symbol
+        self.date = date
 
         # Check if index is datetime
         if not isinstance(self.data.index, pd.Timestamp):
@@ -32,24 +34,40 @@ class Backtester():
             # Get locations of where signal is 1 or -1
             signals = self.data[self.data['signal'].isin([-1, 1])].index
 
-
             if len(signals) == 0:
-                print("No signals found")
+                print("No more signals found")
                 break
+
+            # Hack to check if news signal is 1 5 mins before/after the signal
+            signal_index = signals[0]
+
+            print(f"Signal found at: {signal_index}")
+
+            # news_signal_df = self.data.loc[signal_index-pd.Timedelta(minutes=5):signal_index+pd.Timedelta(minutes=5)]
+            # has_news_signal = news_signal_df.news_signal.sum() > 0
+            # if not has_news_signal:
+            #     post_cooldown_index = signal_index+pd.Timedelta(minutes=80)
+            #     self.data = self.data.loc[post_cooldown_index:]
+            #     continue
+
+            print("=====================================")
+            print("> News signal found")
+            print(signal_index)
+
 
             trade_dict = {}
             # Create dataframe from the first signal onwards
-            signal_df = self.data.loc[signals[0]:]
+            signal_df = self.data.loc[signal_index:]
             signal_row = signal_df.iloc[0]
-            trade_index = signal_df.index[0]
+            
 
             position_type = 'long' if signal_row['signal'] == 1 else 'short'
             entry_price = signal_row['avg_price']
 
-            trade_dict["trade_time"] = str(trade_index)
+            trade_dict["trade_time"] = str(signal_index)
             trade_dict["trade_number"] = self.trade_number
             trade_dict["symbol"] = symbol
-            trade_dict["window_start_time"] = str(trade_index - pd.Timedelta(seconds=self.signal_window))
+            trade_dict["window_start_time"] = str(signal_index - pd.Timedelta(seconds=self.signal_window))
             trade_dict["position_type"] = 'long' if signal_row['signal'] == 1 else 'short'
             trade_dict["entry_price"] = signal_row['avg_price']
             trade_dict["sl_price"] = trade_dict["entry_price"] * 0.975
@@ -57,13 +75,14 @@ class Backtester():
 
 
             print(f"> Starting {position_type} position at {entry_price}")
-            print(f"> Starting trade at {trade_index}")
+            print(f"> Starting trade at {signal_index}")
 
             time_past = 0
             max_pos_pct_change = -99999
             max_neg_pct_change = 99999
 
             for index, row in signal_df.iterrows():
+
                 pct_change = round((row['avg_price'] - entry_price) / entry_price, 6)
 
                 current_max_pos_pct_change = max_pos_pct_change
@@ -82,20 +101,20 @@ class Backtester():
                     trade_dict["max_neg_pct_change_time"] = str(index)
                     trade_dict["max_neg_pct_change_time_past"] = time_past
                 
-                print("***********")
-                print(f"> Entry price is {entry_price} after {time_past} seconds. Type is {position_type}")
-                print(f"> Current price is {row['avg_price']}")
-                print(f"> Current pct change is {pct_change}")
-                print(f"> Stop loss price is {trade_dict['sl_price']}")
-                print(f"> Take profit price is {trade_dict['tp_price']}")
-                print(f"> Number of buy trades is {row.num_of_trades_bought}")
-                print(f"> Number of sell trades is {row.num_of_trades_sold}")
-                print(f"Volume of asset bought is {row.sum_asset_bought}")
-                print(f"Volume of asset sold is {row.sum_asset_sold}")
+                # print("***********")
+                # print(f"> Entry price is {entry_price} after {time_past} seconds. Type is {position_type}")
+                # print(f"> Current price is {row['avg_price']}")
+                # print(f"> Current pct change is {pct_change}")
+                # print(f"> Stop loss price is {trade_dict['sl_price']}")
+                # print(f"> Take profit price is {trade_dict['tp_price']}")
+                # print(f"> Number of buy trades is {row.num_of_trades_bought}")
+                # print(f"> Number of sell trades is {row.num_of_trades_sold}")
+                # print(f"Volume of asset bought is {row.sum_asset_bought}")
+                # print(f"Volume of asset sold is {row.sum_asset_sold}")
 
-                print(f"> Number of buy trades is {row.num_of_trades_bought}")
+                # print(f"> Number of buy trades is {row.num_of_trades_bought}")
 
-                time.sleep(1)
+                # time.sleep(1)
                 time_past += 1
                 
                 # Break trade if time_past is 5 minutes
@@ -106,10 +125,10 @@ class Backtester():
             trade_dict["end_time"] = str(index)
             self.trade_list.append(trade_dict)
             
-            self.plot_trade(trade_index, entry_price, symbol, position_type, trade_dict)
+            self.plot_trade(signal_index, entry_price, symbol, position_type, trade_dict)
             self.trade_number += 1
 
-            post_cooldown_index = index+pd.Timedelta(minutes=80)
+            post_cooldown_index = signal_index+pd.Timedelta(minutes=80)
             self.data = self.data.loc[post_cooldown_index:]
             
             print(f"> Ending trade at {index}")
@@ -154,7 +173,7 @@ class Backtester():
             plt.ylabel('Average Price')
             plt.legend()
             plt.grid(True)
-            results_folder = f'local/results/{symbol}/sw_{signal_window}_st_{signal_threshold}_{date}/'
+            results_folder = f'local/results/{self.symbol}/sw_{self.signal_window}_st_{self.signal_threshold}_{self.date}/'
 
             if not os.path.exists(results_folder):
                 os.makedirs(results_folder)
@@ -170,7 +189,7 @@ class Backtester():
             print("No trades found")
             return
         
-        results_folder = f'local/results/{symbol}/sw_{signal_window}_st_{signal_threshold}_{date}/'
+        results_folder = f'local/results/{self.symbol}/sw_{self.signal_window}_st_{self.signal_threshold}_{self.date}/'
         
         best_outcome_pct = 0
         worst_outcome_pct = 0
@@ -202,25 +221,28 @@ class Backtester():
 
 from retrieve_dataset import RetriveDataset 
 
-date = "2023-08"
-symbol = "APTUSDT"
+# date = "2023-08"
+# self. = "LRCUSDT"
 
-signal_window = 50
-signal_threshold = 0.005
-df = RetriveDataset(symbol, date, signal_window, signal_threshold, load_source="blob").retrieve_trading_dataset()
+# signal_window = 50
+# signal_threshold = 0.005
+# df = RetriveDataset(symbol, date, signal_window, signal_threshold, load_source="blob").retrieve_trading_dataset()
 # df = df[['floored_time', 'avg_price', 'signal']]
 
-df['floored_time'] = pd.to_datetime(df['floored_time'], format='%Y-%m-%d %H:%M:%S')
+symbol = "APTUSDT"
 
-# Drop rows with NaN values
-df.dropna(inplace=True)
+x = RetriveDataset(symbol, "2023-08", 5, 0.01)
+trading_df = x.retrieve_trading_dataset()
+
+trading_df['index'] = pd.to_datetime(trading_df['index'], format='%Y-%m-%d %H:%M:%S')
 
 # Replace NaN or Inf with 0
-df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
+trading_df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
 
-df.set_index('floored_time', inplace=True)
+trading_df.set_index('index', inplace=True)
 
-backtester = Backtester(df, signal_window, signal_threshold, 10000)
+
+backtester = Backtester(trading_df, 5, 0.01, symbol, "2023-08", 10000)
 backtester.run()
 backtester.save_trade_list()
 
