@@ -8,11 +8,11 @@ import json
 
 class Backtester():
 
-    def __init__(self, data, singal_window, signal_threshold, symbol, date, inital_capital=100000):
+    def __init__(self, data, symbol, date, inital_capital=100000):
+        print("=== Backtester ===")
+        print("> Initialising backtester...")
         self.data = data
         self.inital_capital = inital_capital
-        self.signal_window = singal_window
-        self.signal_threshold = signal_threshold
         self.symbol = symbol
         self.date = date
 
@@ -35,44 +35,41 @@ class Backtester():
             signals = self.data[self.data['signal'].isin([-1, 1])].index
 
             if len(signals) == 0:
-                print("No more signals found")
+                print("> No more signals found")
                 break
 
             # Hack to check if news signal is 1 5 mins before/after the signal
             signal_index = signals[0]
 
-            print(f"Signal found at: {signal_index}")
-
-            # news_signal_df = self.data.loc[signal_index-pd.Timedelta(minutes=5):signal_index+pd.Timedelta(minutes=5)]
-            # has_news_signal = news_signal_df.news_signal.sum() > 0
-            # if not has_news_signal:
-            #     post_cooldown_index = signal_index+pd.Timedelta(minutes=80)
-            #     self.data = self.data.loc[post_cooldown_index:]
-            #     continue
-
-            print("=====================================")
-            print("> News signal found")
-            print(signal_index)
-
+            print(f"> Signal found at: {signal_index}")
 
             trade_dict = {}
             # Create dataframe from the first signal onwards
             signal_df = self.data.loc[signal_index:]
             signal_row = signal_df.iloc[0]
+
+            # Check if new signal is in the df for the last one minute
             
+            print("=====================================")
+            print("> News signal found")
+            print(signal_index)
 
             position_type = 'long' if signal_row['signal'] == 1 else 'short'
             entry_price = signal_row['avg_price']
+            tp_multiplier = 1.05 if position_type == 'long' else 0.95
+            sl_multiplier = 0.975 if position_type == 'long' else 1.025
+
 
             trade_dict["trade_time"] = str(signal_index)
             trade_dict["trade_number"] = self.trade_number
-            trade_dict["symbol"] = symbol
-            trade_dict["window_start_time"] = str(signal_index - pd.Timedelta(seconds=self.signal_window))
+            trade_dict["symbol"] = self.symbol
             trade_dict["position_type"] = 'long' if signal_row['signal'] == 1 else 'short'
             trade_dict["entry_price"] = signal_row['avg_price']
-            trade_dict["sl_price"] = trade_dict["entry_price"] * 0.975
-            trade_dict["tp_price"] = trade_dict["entry_price"] * 1.05
-
+            
+            trade_dict["tp_price"] = trade_dict["entry_price"] * tp_multiplier
+            trade_dict["sl_price"] = trade_dict["entry_price"] * sl_multiplier
+            trade_dict["tp_price_hit"] = False
+            trade_dict["sl_price_hit"] = False
 
             print(f"> Starting {position_type} position at {entry_price}")
             print(f"> Starting trade at {signal_index}")
@@ -101,31 +98,41 @@ class Backtester():
                     trade_dict["max_neg_pct_change_time"] = str(index)
                     trade_dict["max_neg_pct_change_time_past"] = time_past
                 
-                # print("***********")
-                # print(f"> Entry price is {entry_price} after {time_past} seconds. Type is {position_type}")
-                # print(f"> Current price is {row['avg_price']}")
-                # print(f"> Current pct change is {pct_change}")
-                # print(f"> Stop loss price is {trade_dict['sl_price']}")
-                # print(f"> Take profit price is {trade_dict['tp_price']}")
-                # print(f"> Number of buy trades is {row.num_of_trades_bought}")
-                # print(f"> Number of sell trades is {row.num_of_trades_sold}")
-                # print(f"Volume of asset bought is {row.sum_asset_bought}")
-                # print(f"Volume of asset sold is {row.sum_asset_sold}")
+                # Check if TP or SL is hit
+                if not trade_dict["sl_price_hit"] and not trade_dict["tp_price_hit"]:
+                    if position_type == 'long' and row['avg_price'] >= trade_dict["tp_price"] or position_type == 'short' and row['avg_price'] <= trade_dict["tp_price"]:
+                        trade_dict["tp_price_hit"] = True
+                        trade_dict["tp_price_hit_time"] = str(index)    
+                        break
 
-                # print(f"> Number of buy trades is {row.num_of_trades_bought}")
+                if not trade_dict["sl_price_hit"] and not trade_dict["tp_price_hit"]:
+                    if position_type == 'long' and row['avg_price'] <= trade_dict["sl_price"] or position_type == 'short' and row['avg_price'] >= trade_dict["sl_price"]:
+                        trade_dict["sl_price_hit"] = True
+                        trade_dict["sl_price_hit_time"] = str(index)
+                        break
 
-                # time.sleep(1)
                 time_past += 1
                 
                 # Break trade if time_past is 5 minutes
-                if time_past == (60*5):
+                if time_past == (60*10):
+                    print("> Trade has been running for 10 minutes, breaking trade")
+                    trade_dict["end_pct_change"] = pct_change
+                    if position_type == 'long' and row['avg_price'] > entry_price or position_type == 'short' and row['avg_price'] < entry_price:
+                        trade_dict["end_outcome"] = "positive"
+                    else:
+                        trade_dict["end_outcome"] = "negative"
                     break
             
             trade_dict["end_price"] = row['avg_price']
             trade_dict["end_time"] = str(index)
             self.trade_list.append(trade_dict)
             
-            self.plot_trade(signal_index, entry_price, symbol, position_type, trade_dict)
+            self.plot_trade(signal_index, entry_price, position_type, trade_dict)
+
+            # Save trade data to CSV
+            # trade_df = self.data.loc[signal_index-pd.Timedelta(minutes=1):signal_index+pd.Timedelta(minutes=10)]
+            # trade_df.to_csv(f'local/results/{self.symbol}/sw_{self.signal_window}_st_{self.signal_threshold}_{self.date}/trade_{self.trade_number}.csv')
+
             self.trade_number += 1
 
             post_cooldown_index = signal_index+pd.Timedelta(minutes=80)
@@ -140,7 +147,7 @@ class Backtester():
 
         return
 
-    def plot_trade(self, trade_index, entry_price, symbol, position_type, trade_dict):
+    def plot_trade(self, trade_index, entry_price, position_type, trade_dict):
         try:
             pre_trade_index = trade_index - pd.Timedelta(minutes=30)
             post_trade_index = trade_index + pd.Timedelta(minutes=30)
@@ -163,9 +170,11 @@ class Backtester():
 
             plt.scatter(max_neg_pct_change_time, trade_data.loc[max_neg_pct_change_time, 'avg_price'], color='pink', marker='^', s=100, label='Largest Negative Change')
 
-            singal_window_index = trade_index - pd.Timedelta(seconds=self.signal_window)
+            # Plot news signals
+            signal_data = trade_data[trade_data['news_signal'] == 1]
 
-            plt.scatter(singal_window_index, trade_data.loc[singal_window_index, 'avg_price'], color='yellow', marker='*', s=100, label='Window Start')
+            if not signal_data.empty:
+                plt.scatter(signal_data.index, signal_data['avg_price'], color='orange', marker='o', s=20, label='News Signal')
 
             plt.axhline(y=entry_price, color='g', linestyle='--', label='Entry price')
             plt.title(f'{position_type} Trade at {trade_index}')
@@ -173,11 +182,11 @@ class Backtester():
             plt.ylabel('Average Price')
             plt.legend()
             plt.grid(True)
-            results_folder = f'local/results/{self.symbol}/sw_{self.signal_window}_st_{self.signal_threshold}_{self.date}/'
+            results_folder = f'local/results/{self.symbol}/{self.date}/'
 
             if not os.path.exists(results_folder):
                 os.makedirs(results_folder)
-            print(f"Saving plot to {results_folder}trade_{self.trade_number}.png")
+            print(f"> Saving plot to {results_folder}trade_{self.trade_number}.png")
 
             plt.savefig(f'{results_folder}trade_{self.trade_number}.png')
         except:
@@ -186,10 +195,10 @@ class Backtester():
 
     def save_trade_list(self):
         if self.trade_list == []:
-            print("No trades found")
+            print("> No trades found")
             return
         
-        results_folder = f'local/results/{self.symbol}/sw_{self.signal_window}_st_{self.signal_threshold}_{self.date}/'
+        results_folder = f'local/results/{self.symbol}/{self.date}/'
         
         best_outcome_pct = 0
         worst_outcome_pct = 0
@@ -229,22 +238,64 @@ from retrieve_dataset import RetriveDataset
 # df = RetriveDataset(symbol, date, signal_window, signal_threshold, load_source="blob").retrieve_trading_dataset()
 # df = df[['floored_time', 'avg_price', 'signal']]
 
-symbol = "APTUSDT"
+# ALL_SYMBOLS = [ 'BTCUSDT','ZECUSDT','EOSUSDT','SOLUSDT','XEMUSDT','OPUSDT','SNXUSDT','1INCHUSDT','TRXUSDT','QTUMUSDT','AGIXUSDT','RUNEUSDT','FLOWUSDT','BNBUSDT','HFTUSDT','APTUSDT','ANKRUSDT','DOGEUSDT','ASTRUSDT','RDNTUSDT','STXUSDT','CTKUSDT','ETHUSDT','NEARUSDT','TUSDT','IOTXUSDT','GRTUSDT','UNIUSDT','ZRXUSDT','DYDXUSDT','ICPUSDT','NEOUSDT','BNXUSDT','SANDUSDT','EGLDUSDT','SSVUSDT','GTCUSDT','MASKUSDT','AMBUSDT','DARUSDT','CELOUSDT','AAVEUSDT','HBARUSDT','ARBUSDT','SXPUSDT','ANTUSDT','ZENUSDT','ICXUSDT','XTZUSDT','YFIUSDT','RSRUSDT','PEOPLEUSDT','DGBUSDT','LINKUSDT','GALUSDT','FTMUSDT','FXSUSDT','TLMUSDT','CELRUSDT','SUSHIUSDT','ALPHAUSDT','ARPAUSDT','HOOKUSDT','MINAUSDT','COTIUSDT','JOEUSDT','ENSUSDT','WOOUSDT','INJUSDT','SKLUSDT','USDCUSDT','IMXUSDT','SFPUSDT','DASHUSDT','MAGICUSDT','PERPUSDT','CTSIUSDT','CHZUSDT','QNTUSDT','LEVERUSDT','IOTAUSDT','IOSTUSDT','WAVESUSDT','TOMOUSDT','BLZUSDT','C98USDT','VETUSDT','ZILUSDT','GMTUSDT','DOTUSDT','ROSEUSDT','LDOUSDT','XLMUSDT','CFXUSDT','LITUSDT','XVSUSDT','OCEANUSDT','BANDUSDT','HOTUSDT','LTCUSDT','AVAXUSDT','ENJUSDT','GALAUSDT','BATUSDT','FETUSDT','BALUSDT','FILUSDT','KAVAUSDT','RNDRUSDT','LPTUSDT','AUDIOUSDT','ALGOUSDT','XRPUSDT','OGNUSDT','GMXUSDT','ACHUSDT','ONTUSDT','KLAYUSDT','REEFUSDT','AXSUSDT','HIGHUSDT','LINAUSDT','ALICEUSDT','DUSKUSDT','FLMUSDT','PHBUSDT','ATOMUSDT','MATICUSDT','LQTYUSDT','STORJUSDT','CKBUSDT','KNCUSDT','MKRUSDT','APEUSDT','API3USDT','NKNUSDT','RVNUSDT','CHRUSDT','MANAUSDT','CRVUSDT','STMXUSDT','ADAUSDT','ATAUSDT','STGUSDT','ARUSDT','IDUSDT','RLCUSDT','THETAUSDT','BLURUSDT','ONEUSDT','TRUUSDT','TRBUSDT','COMPUSDT','IDEXUSDT','SUIUSDT','EDUUSDT','MTLUSDT','1000PEPEUSDT','1000FLOKIUSDT','DENTUSDT','BCHUSDT','1000XECUSDT','JASMYUSDT','UMAUSDT','BELUSDT','1000SHIBUSDT','RADUSDT','XMRUSDT','1000LUNCUSDT','SPELLUSDT','KEYUSDT','COMBOUSDT','UNFIUSDT','CVXUSDT','ETCUSDT','MAVUSDT','MDTUSDT','XVGUSDT','NMRUSDT','BAKEUSDT','WLDUSDT','PENDLEUSDT','ARKMUSDT','AGLDUSDT','YGGUSDT','SEIUSDT' ]
 
-x = RetriveDataset(symbol, "2023-08", 5, 0.01)
-trading_df = x.retrieve_trading_dataset()
+# SYMBOLS = [
+#     "APTUSDT",
+#     "ASTRUSDT",
+#     "BALUSDT",
+#     "BNBUSDT",
+#     "C98USDT",
+#     "CELOUSDT",
+#     "CHZUSDT",
+#     "CRVUSDT",
+#     "DOGEUSDT",
+# ]
 
-trading_df['index'] = pd.to_datetime(trading_df['index'], format='%Y-%m-%d %H:%M:%S')
+SYMBOLS = [
+    "GALUSDT",
+    "GTCUSDT",
+    "HBARUSDT",
+    "HFTUSDT",
+    "ICPUSDT",
+    "INJUSDT",
+    "KLAYUSDT",
+    "LEVERUSDT",
+    "MASKUSDT",
+    "ONTUSDT",
+    "QTUMUSDT",
+    "RLCUSDT",
+    "THETAUSDT",
+    "XRPUSDT"
+]
+ 
 
-# Replace NaN or Inf with 0
-trading_df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
+# for symbol in SYMBOLS:
+#     print(f"> Running backtest for {symbol}")
+#     trading_data = RetriveDataset(symbol, "2023-08", recompile=True)
+#     trading_df = trading_data.retrieve_trading_dataset()
 
-trading_df.set_index('index', inplace=True)
+#     backtester = Backtester(trading_df, symbol, "2023-08", 10000)
+#     backtester.run()
+#     backtester.save_trade_list()
 
+print(f"> Running backtest for {None}")
+trading_data = RetriveDataset("BTCUSDT", "2023-08", recompile=True)
+trading_df = trading_data.retrieve_trading_dataset()
 
-backtester = Backtester(trading_df, 5, 0.01, symbol, "2023-08", 10000)
+backtester = Backtester(trading_df, "BTCUSDT", "2023-08", 10000)
 backtester.run()
 backtester.save_trade_list()
+
+# Run Backtest
+# for symbol in SYMBOLS:
+#     print(f"> Running backtest for {symbol}")
+#     trading_data = RetriveDataset(symbol, "2023-08", 5, 0.01)
+#     trading_df = trading_data.retrieve_trading_dataset()
+
+#     backtester = Backtester(trading_df, 5, 0.01, symbol, "2023-08", 10000)
+#     backtester.run()
+#     backtester.save_trade_list()
 
 
 

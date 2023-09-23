@@ -1,10 +1,8 @@
 import os
-import json
-import requests
+from datetime import datetime
 import pandas as pd
-import matplotlib.pyplot as plt
 from dotenv import load_dotenv
-from azure.storage.blob import BlobServiceClient, BlobClient
+from azure.storage.blob import BlobServiceClient
 from azure.core.exceptions import ResourceNotFoundError
 import io
 from agg_trades_downloader import retrieve_agg_trades
@@ -22,9 +20,14 @@ ACCOUNT_URL = os.environ['AZURE_STORAGE_ACCOUNT_URL']
 
 class RetriveDataset():
 
-    def __init__(self, symbol, date, signal_window, signal_threshold, load_source="local"):
+    def __init__(self, symbol, date, recompile=False, signal_window=None, signal_threshold=None, load_source="local"):
+        print("=== RetriveDataset ===")
+        print("> Initializing RetriveDataset...")
+        print(f"> Symbol: {symbol}")
+        print(f"> Date: {date}")
 
         self.aggregation_window = '1S'
+        self.recompile = recompile
         self.signal_window = signal_window
         self.signal_threshold = signal_threshold
 
@@ -35,8 +38,8 @@ class RetriveDataset():
         self.load_source = load_source
         self.reduced_trades_filepath = f"reduced_trades/{self.interval}/{symbol}/{symbol}-reduced-{self.aggregation_window}-{self.data_type}-{date}.csv"
         self.agg_trades_filepath = f"aggTrades/{self.interval}/{symbol}/{symbol}-aggTrades-{date}.csv"
-        self.local_trading_dataset_filepath = f"local/data/{self.symbol}/trading_dataset_{self.date}_sw_{self.signal_window}_st_{str(self.signal_threshold).replace('0.', '')}.csv"
-        self.trading_dataset_filepath = f"trading_datasets/{self.symbol}/trading_dataset_{self.date}_sw_{self.signal_window}_st_{str(self.signal_threshold).replace('0.', '')}.csv"
+        self.local_trading_dataset_filepath = f"local/data/{self.symbol}/trading_dataset_{self.date}.csv"
+        self.trading_dataset_filepath = f"trading_datasets/{self.symbol}/trading_dataset_{self.date}.csv"
         self.indicator_dict = {
             "pct_change": {
                 "window" : [5, 10, 20, 60]
@@ -48,54 +51,60 @@ class RetriveDataset():
         
         trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath, retrieve_type="trading dataset")
 
-        if trading_dataset_df is None or "news_signal" not in trading_dataset_df.columns:
+        if trading_dataset_df is None or self.recompile:
             reduced_trades_df = self.retrieve_reduced_trades()
             trading_dataset_df = self.add_indicators(reduced_trades_df)
-            trading_dataset_df = self.add_signal(trading_dataset_df)
             trading_dataset_df = self.add_news_signals(trading_dataset_df)
+
+            if trading_dataset_df["news_signal"].sum() > 0:
+                trading_dataset_df = self.add_total_zscore(trading_dataset_df)
+            else:
+                trading_dataset_df["total_z_score"] = 0
+
+            trading_dataset_df = self.add_signal(trading_dataset_df)
 
             self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 
-            
-        trading_dataset_df.reset_index(inplace=True)
+        # Replace NaN or Inf with 0
+        trading_dataset_df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
 
         return trading_dataset_df
 
 
     def retrieve_reduced_trades(self):
+        print("> Retrieving reduced trades...")
         reduced_trades_df = self.__retrieve_from_blob(self.reduced_trades_filepath, retrieve_type="reduced trades")
 
         if reduced_trades_df is None:
-            print("Could not retrieve reduced trades from blob")
-            print("Building reduced trades...")
+            print("> Could not retrieve reduced trades from blob")
             reduced_trades_df = self.__build_reduced_trades()
             self.__save_to_blob(reduced_trades_df, self.reduced_trades_filepath)
 
         else:
-            print(f"Retrieved reduced trades from blob for {self.symbol}-{self.date}")
+            print(f"> Retrieved reduced trades from blob for {self.symbol}-{self.date}")
 
         return reduced_trades_df
     
 
     def __build_reduced_trades(self):
-
+        print("> Building reduced trades...")
         agg_trades_df = self.get_agg_trades()
 
         if agg_trades_df is None:
-            print("Could not build reduced trades. Agg trades is does not exist")
+            print("> Could not build reduced trades. Agg trades is does not exist")
             return None
         
         reduced_trades_df = self.__reduce_trades(agg_trades_df)
 
         if reduced_trades_df is None:
-            print("Could not build reduced trades")
+            print("> Could not build reduced trades")
             return None
 
         return reduced_trades_df
 
 
     def __save_to_blob(self, df, filepath, local=False):
-        print("Saving to blob...")
+        print("> Saving to blob...")
 
         csv_data = io.StringIO()
         df.to_csv(csv_data)  # Set index to True if you want to include the DataFrame's index in the CSV
@@ -106,10 +115,12 @@ class RetriveDataset():
 
 
     def get_agg_trades(self):
-        
+        print("> Retrieving agg trades...")
         agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath, "agg trades")
 
         if agg_trades_df is None:
+            print("> Could not retrieve agg trades from blob")
+            print("> Retrieving agg trades from binance...")
             retrieve_agg_trades(self.symbol, self.date, self.interval)
             agg_trades_df = self.__retrieve_from_blob(self.agg_trades_filepath, "agg trades")
 
@@ -120,7 +131,9 @@ class RetriveDataset():
 
         for indicator, params in self.indicator_dict.items():
             if indicator == "pct_change":
-                if self.signal_window not in params['window']:
+
+                # Can't remember why I did this
+                if self.signal_window and self.signal_window not in params['window']:
                     params['window'].append(self.signal_window)
                     params['window'] = sorted(params['window'])
 
@@ -134,6 +147,14 @@ class RetriveDataset():
         
         start_time = df.index.values[0]
         end_time = df.index.values[-1]
+        
+        if not (isinstance(start_time, str) and isinstance(end_time, str)):
+            start_time_pd = pd.Timestamp(start_time)
+            end_time_pd = pd.Timestamp(end_time)
+            start_time = start_time_pd.strftime('%Y-%m-%d %H:%M:%S')
+            end_time = end_time_pd.strftime('%Y-%m-%d %H:%M:%S')
+
+        print(f"> Retrieving news from {start_time} to {end_time}...")
 
         news_class = GetCryptoNews(start_time, end_time, symbol=self.symbol)
         news_class.filter_news()
@@ -146,10 +167,48 @@ class RetriveDataset():
 
 
     def add_signal(self, df):
-        df['signal'] = 0  # Initialize with 0
-        df.loc[df[f'pct_change_{self.signal_window}'] > self.signal_threshold, 'signal'] = 1
-        df.loc[df[f'pct_change_{self.signal_window}'] < -1*self.signal_threshold, 'signal'] = -1
-    
+        # Create a rolling window for news_signal
+        df['temp_rolling_news'] = df['news_signal'].rolling(window=5).max().fillna(0)
+        
+        # Shift the avg_price
+        df['temp_shifted_avg_price'] = df['avg_price'].shift(periods=5, fill_value=df['avg_price'].iloc[0])
+        
+        # Define the conditions
+        zscore_condition = df['total_z_score'] > 100
+        news_signal_condition = df['temp_rolling_news'] == 1
+        avg_price_increase = df['avg_price'] > df['temp_shifted_avg_price']
+        avg_price_decrease = df['avg_price'] < df['temp_shifted_avg_price']
+
+        # Assign signals based on conditions
+        df.loc[zscore_condition & news_signal_condition & avg_price_increase, 'signal'] = 1
+        df.loc[zscore_condition & news_signal_condition & avg_price_decrease, 'signal'] = -1
+        df['signal'].fillna(0, inplace=True)  # Fill NaN values with 0
+
+        # Drop temporary columns
+        df.drop(columns=['temp_rolling_news', 'temp_shifted_avg_price'], inplace=True)
+        
+        return df
+
+
+
+    def add_total_zscore(self, df):
+        print("> Adding total z-score...")
+        # Columns to be considered for z-score calculation
+        cols_to_consider = [col for col in df.columns if col not in ["avg_price", "index", "news_signal", "signal"]]
+        
+        # If "pct" not in column name, filter out rows where the value is 0. Otherwise, use original df.
+        valid_data = {col: df[df[col] > 0] if "pct" not in col else df for col in cols_to_consider}
+        
+        # Compute means and standard deviations
+        means = {col: valid_data[col][col].mean() for col in cols_to_consider}
+        std_devs = {col: valid_data[col][col].std() for col in cols_to_consider}
+        
+        # Compute z-scores for entire columns in one go (vectorized)
+        z_scores = {col: (df[col] - means[col]) / std_devs[col] for col in cols_to_consider}
+        
+        # Aggregate z-scores (this will sum across columns for each row)
+        df['total_z_score'] = pd.DataFrame(z_scores).abs().sum(axis=1)
+
         return df
 
 
@@ -215,18 +274,22 @@ class RetriveDataset():
 
    
     def __retrieve_from_blob(self, blob_file_path, retrieve_type=""):
-        print(f"Attempting to retrieve {retrieve_type} from blob...")
+        print(f"> Attempting to retrieve {retrieve_type} from blob...")
         try:
             retrieve_file = BLOB_SERVICE_CLIENT.get_blob_client(container=CONTAINER_NAME, blob=blob_file_path)    
                     
             # Download the blob content
             blob_data = retrieve_file.download_blob()
             data = blob_data.readall()
-            df = pd.read_csv(io.BytesIO(data), index_col=0)
+            # Bit of a hack
+            if retrieve_type == "trading dataset":
+                df = pd.read_csv(io.BytesIO(data), index_col=0, parse_dates=True)
+            else:
+                df = pd.read_csv(io.BytesIO(data), index_col=0)
             return df
         
         except ResourceNotFoundError:
-            print(f"{retrieve_type} does not exist in blob")
+            print(f"> {retrieve_type} does not exist in blob")
             return None
 
 

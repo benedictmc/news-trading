@@ -4,7 +4,7 @@ import numpy as np
 import os
 from retrieve_dataset import RetriveDataset
 
-def plot_all_data(df, symbol, date):
+def plot_data(df, symbol, date=None, plot_folder=None, signal_index=None):
 
     plt.figure(figsize=(14,7))
 
@@ -18,33 +18,19 @@ def plot_all_data(df, symbol, date):
     plt.xlabel('Time')
     plt.ylabel('Average Price')
     plt.legend()
+    plt.title(f'Trade at {signal_index}')
     plt.grid(True)
-    results_folder = f'local/plots/{symbol}/plots/{symbol}'
+    if not plot_folder:
+        results_folder = f'local/plots/{symbol}/plots/{symbol}'
+    else:
+        results_folder = f'local/{plot_folder}/{symbol}'
+        
 
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
-    filepath = f'{results_folder}/all_data_{date}.png'
+    filepath = f'{results_folder}/data_{signal_index}.png'
     print(f"Saving plot to {filepath}")
     plt.savefig(filepath)
-
-symbol = "ETHUSDT"
-
-x = RetriveDataset(symbol, "2023-08", 5, 0.01)
-trading_df = x.retrieve_trading_dataset()
-
-trading_df['index'] = pd.to_datetime(trading_df['index'], format='%Y-%m-%d %H:%M:%S')
-
-# Replace NaN or Inf with 0
-trading_df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
-
-trading_df.set_index('index', inplace=True)
-
-#Filter df between 2023-08-09 12:30:05 and 2023-08-09 13:30:05
-# trading_df = trading_df.loc['2023-08-09 12:27:00':'2023-08-09 12:35:00']
-
-print(trading_df.signal.value_counts())
-
-# plot_all_data(trading_df, symbol, "2023-08")
-
-# trading_df.to_csv(f'local/plots/{symbol}/{symbol}.csv')
+    plt.close()
+    

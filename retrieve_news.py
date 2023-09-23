@@ -12,9 +12,11 @@ NEWS_API_ENDPOINT = "https://news.treeofalpha.com/api"
 class GetCryptoNews():
 
     def __init__(self, start_time:str, end_time:str, symbol:str="BTC_USDT"):
+        print("=== GetCryptoNews ===")
+        print("> Initializing GetCryptoNews...")
         self.symbol = symbol
 
-        self.start_timestamp = int(datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp() * 1000)
+        self.start_timestamp = int(datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp() * 1000)
         self.end_timestamp = int(datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp() * 1000)
         self.symbol_set = set()
 
@@ -22,15 +24,16 @@ class GetCryptoNews():
 
     
     def filter_news(self):
-        print(f"Filtered news: {len(self.news)}")
+        print(f"> Filtered news: {len(self.news)}")
         self.news = self.__filter_news_by_time(self.news)
 
-        print(f"Filtered news: {len(self.news)}")
+        print(f"> Filtered news: {len(self.news)}")
         self.news = self.__filter_news_by_symbol(self.news)
 
-        print(f"Filtered news: {len(self.news)}")
-        # print(self.news[-1])
+        print(f"> Filtered news: {len(self.news)}")
+
         return self.news
+
 
     def __filter_news_by_symbol(self, news):
         filtered_news = []
