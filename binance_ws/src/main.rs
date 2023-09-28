@@ -3,7 +3,7 @@
 
 mod models;
 
-use models::{BinanceMessage, TradeData, TradeInfo, TreeOfAlphaMessage, QuotedUser, Suggestion};
+use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, SymbolTradeData, TradeStore};
 use std::collections::HashMap;
 use tokio::time::{Duration, interval};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
@@ -22,16 +22,37 @@ const SYMBOLS: [&str; 25] = [
     "RLCUSDT", "THETAUSDT", "XRPUSDT"
 ];
 
-const BINANCE_TICK_INTERVAL: u64 = 30;
+const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
+
+impl TradeStore {
+    pub fn new() -> Self {
+        TradeStore {
+            trades_buy: Vec::new(),
+            trades_sold: Vec::new(),
+            volume_buy: Vec::new(),
+            volume_sold: Vec::new(),
+        }
+    }
+}
+
+
 
 #[tokio::main]
 async fn main() {
     // Run both WebSocket tasks concurrently
+    println!("> Starting WebSocket tasks...");
+
     tokio::join!(run_binance_websocket(), run_treeofalpha_websocket());
 }
 
 async fn run_binance_websocket() {
+    let mut symbol_trade_data = SymbolTradeData::default();
+
+    for &symbol in SYMBOLS.iter() {
+        symbol_trade_data.insert(symbol.to_string(), TradeStore::new());
+    }
+
     let symbols_string = SYMBOLS.iter()
     .map(|s| format!("{}@aggTrade", s.to_lowercase()))
     .collect::<Vec<_>>()
@@ -64,6 +85,7 @@ async fn run_binance_websocket() {
                                 info.count += 1;
 
                                 if let (Ok(price), Ok(qty)) = (parsed_message.data.p.parse::<f64>(), parsed_message.data.q.parse::<f64>()) {
+
                                     info.total_price += price;
                                     let volume = price * qty;
                                     if parsed_message.data.m {
@@ -85,15 +107,33 @@ async fn run_binance_websocket() {
                     let avg_price = if info.count == 0 { 0.0 } else { round(info.total_price / info.count as f64 * 100.0, 6) / 100.0 };
                     // Only print if there was at least one trade.
                     if info.count > 0 {
-                        let current_time = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_nanos();
+                        
+                        let trade_store = symbol_trade_data.entry(symbol.to_string()).or_insert(TradeStore::new());
+
+                        if info.amount_of_buys > 0 {
+                            trade_store.trades_buy.push(info.amount_of_buys);
+                            trade_store.volume_buy.push(info.volume_bought);
+                        }
+
+                        if info.amount_of_sells > 0 {
+                            trade_store.trades_sold.push(info.amount_of_sells);
+                            trade_store.volume_sold.push(info.volume_sold);
+                        }
+
+                        let current_time = get_current_time();
+
                         println!(
                             "> binancews: [{}] Symbol: {}, Avg Price: {}, amount_of_buys: {}, amount_of_sells: {}, Volume Bought: {}, Volume Sold: {}", 
                             current_time,
                             symbol, avg_price, info.amount_of_buys, info.amount_of_sells, info.volume_bought, info.volume_sold
                         );
+                    }
+                    
+                    if let Some(store) = symbol_trade_data.get(symbol) {
+                        println!("> binancews: Symbol: {}, trades_buy length: {}", symbol, store.trades_buy.len());
+                        println!("> binancews: Symbol: {}, trades_sold length: {}", symbol, store.trades_sold.len());
+                        println!("> binancews: Symbol: {}, volume_buy length: {}", symbol, store.volume_buy.len());
+                        println!("> binancews: Symbol: {}, volume_sold length: {}", symbol, store.volume_sold.len());
                     }
                     
                 }
@@ -119,34 +159,48 @@ async fn run_treeofalpha_websocket() {
             Some(Ok(message)) = ws_read.next() => {
                 match message {
                     Message::Text(text) => {
-                        match serde_json::from_str::<TreeOfAlphaMessage>(&text) {
-                            Ok(parsed_message) => {
-                                // Process the deserialized message or print it
-                                println!("> treeofalpha: Received Message: {:?}", parsed_message);
+                        // First, try to parse as TreeOfAlphaTweet
+                        match serde_json::from_str::<TreeOfAlphaNews>(&text) {
+                            Ok(news_message) => {
+                                let current_time = get_current_time();
+                                println!("> treeofalpha: Received news at {}: {:?}", current_time, news_message);
                             },
-                            Err(e) => {
-                                println!("> treeofalpha: Failed to deserialize message: {}", e);
+                            Err(_) => {
+                                match serde_json::from_str::<TreeOfAlphaTweet>(&text) {
+                                    Ok(tweet_message) => {
+                                        let current_time = get_current_time();
+                                        println!("> treeofalpha: Received tweet at {}: {:?}", current_time, tweet_message);
+                                    },
+                                    Err(e) => {
+                                        println!("> treeofalpha: Failed to deserialize both formats: {}", e);
+                                    }
+                                }
                             }
                         }
                     },
                     Message::Pong(pong) => {
-                        println!("> treeofalpha: PONG");
+                        // No message for now
                     },
-                    _ => {
-                        println!("> treeofalpha: Received unknown message");
-                    }
+                    _ => {}
                 }
             },
             _ = interval_tick.tick() => {
                 ws_write.send(Message::Ping(Vec::new())).await.expect("> treeofalpha: Failed to send ping to treeofalpha");
-                // ws_write.send(Message::Text("ping".into())).await.expect("Failed to send ping to treeofalpha");
             },
         }
     }
 }
 
-    
+//  Helper functions
+
 fn round(x: f64, decimals: u32) -> f64 {
     let y = 10i64.pow(decimals) as f64;
     (x * y).round() / y
+}
+
+fn get_current_time() -> u128 {
+    SystemTime::now()
+    .duration_since(SystemTime::UNIX_EPOCH)
+    .unwrap()
+    .as_nanos()
 }

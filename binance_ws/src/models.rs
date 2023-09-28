@@ -53,7 +53,7 @@ pub struct Suggestion {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TreeOfAlphaMessage {
+pub struct TreeOfAlphaTweet {
     pub title: String,
     pub body: String,
     pub icon: String,
@@ -66,3 +66,42 @@ pub struct TreeOfAlphaMessage {
     pub time: u64,
     pub _id: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct TreeOfAlphaNews {
+    actions: Vec<Action>,
+    delay: u64,
+    en: String,
+    firstPrice: HashMap<String, f64>,
+    source: String,
+    suggestions: Vec<Suggestion>,
+    symbols: Vec<String>,
+    time: u64,
+    title: String,
+    url: String,
+    _id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Action {
+    action: String,
+    icon: Option<String>,
+    title: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Symbol {
+    exchange: String,
+    symbol: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TradeStore {
+    pub trades_buy: Vec<u32>,
+    pub trades_sold: Vec<u32>,
+    pub volume_buy: Vec<f64>,
+    pub volume_sold: Vec<f64>,
+}
+
+
+pub type SymbolTradeData = HashMap<String, TradeStore>;
