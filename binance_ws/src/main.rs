@@ -3,55 +3,52 @@
 
 mod models;
 
-use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, SymbolTradeData, TradeStore};
+use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, SymbolTradeData, SymbolTradeTotals, TradeTotal, SymbolTradeAverages, TradeAverage};
 use std::collections::HashMap;
 use tokio::time::{Duration, interval};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use url::Url;
 use futures::StreamExt;
-use serde::Deserialize;
 use futures::SinkExt;
 use std::time::SystemTime;
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 
-const SYMBOLS: [&str; 25] = [
-    "BTCUSDT", "ETHUSDT",
-    "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
-    "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
-    "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
-    "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
-    "RLCUSDT", "THETAUSDT", "XRPUSDT"
+// const SYMBOLS: [&str; 25] = [
+//     "BTCUSDT", "ETHUSDT",
+//     "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
+//     "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
+//     "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
+//     "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
+//     "RLCUSDT", "THETAUSDT", "XRPUSDT"
+// ];
+
+const SYMBOLS: [&str; 2] = [
+    "BTCUSDT", "ETHUSDT"
 ];
 
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
-
-impl TradeStore {
-    pub fn new() -> Self {
-        TradeStore {
-            trades_buy: Vec::new(),
-            trades_sold: Vec::new(),
-            volume_buy: Vec::new(),
-            volume_sold: Vec::new(),
-        }
-    }
-}
-
 
 
 #[tokio::main]
 async fn main() {
     // Run both WebSocket tasks concurrently
     println!("> Starting WebSocket tasks...");
-
-    tokio::join!(run_binance_websocket(), run_treeofalpha_websocket());
-}
-
-async fn run_binance_websocket() {
-    let mut symbol_trade_data = SymbolTradeData::default();
+    let symbol_trade_totals = Arc::new(Mutex::new(SymbolTradeTotals::default()));
+    let symbol_trade_averages = Arc::new(Mutex::new(SymbolTradeAverages::default()));
 
     for &symbol in SYMBOLS.iter() {
-        symbol_trade_data.insert(symbol.to_string(), TradeStore::new());
+        symbol_trade_totals.lock().await.insert(symbol.to_string(), TradeTotal::default());
+        symbol_trade_averages.lock().await.insert(symbol.to_string(), TradeAverage::default());
     }
+
+    tokio::spawn(calculate_averages(symbol_trade_averages.clone(), symbol_trade_totals.clone()));
+
+    tokio::join!(run_binance_websocket(symbol_trade_totals.clone()), run_treeofalpha_websocket());
+}
+
+async fn run_binance_websocket(symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>>) {
 
     let symbols_string = SYMBOLS.iter()
     .map(|s| format!("{}@aggTrade", s.to_lowercase()))
@@ -104,40 +101,25 @@ async fn run_binance_websocket() {
             },
             _ = interval_tick.tick() => {
                 for (symbol, info) in &trade_infos {
-                    let avg_price = if info.count == 0 { 0.0 } else { round(info.total_price / info.count as f64 * 100.0, 6) / 100.0 };
-                    // Only print if there was at least one trade.
-                    if info.count > 0 {
-                        
-                        let trade_store = symbol_trade_data.entry(symbol.to_string()).or_insert(TradeStore::new());
-
-                        if info.amount_of_buys > 0 {
-                            trade_store.trades_buy.push(info.amount_of_buys);
-                            trade_store.volume_buy.push(info.volume_bought);
-                        }
-
-                        if info.amount_of_sells > 0 {
-                            trade_store.trades_sold.push(info.amount_of_sells);
-                            trade_store.volume_sold.push(info.volume_sold);
-                        }
-
-                        let current_time = get_current_time();
-
-                        println!(
-                            "> binancews: [{}] Symbol: {}, Avg Price: {}, amount_of_buys: {}, amount_of_sells: {}, Volume Bought: {}, Volume Sold: {}", 
-                            current_time,
-                            symbol, avg_price, info.amount_of_buys, info.amount_of_sells, info.volume_bought, info.volume_sold
-                        );
-                    }
                     
-                    if let Some(store) = symbol_trade_data.get(symbol) {
-                        println!("> binancews: Symbol: {}, trades_buy length: {}", symbol, store.trades_buy.len());
-                        println!("> binancews: Symbol: {}, trades_sold length: {}", symbol, store.trades_sold.len());
-                        println!("> binancews: Symbol: {}, volume_buy length: {}", symbol, store.volume_buy.len());
-                        println!("> binancews: Symbol: {}, volume_sold length: {}", symbol, store.volume_sold.len());
+                    let mut trade_total_lock = symbol_trade_totals.lock().await;
+                    if let Some(trade_total) = trade_total_lock.get_mut(symbol) {
+
+                        trade_total.total_volume_sold += info.volume_sold;
+                        trade_total.total_amount_of_sells += info.amount_of_sells;
+                        trade_total.total_volume_bought += info.volume_bought;
+                        trade_total.total_amount_of_buys += info.amount_of_buys;
+    
+                        trade_total.times_updated += 1;
+                        // println!("> binancews: Updated totals for {}", symbol);
+                        // println!("> binancews: Total volume sold: {}", trade_total.total_volume_sold);
+                        // println!("> binancews: Total amount of sells: {}", trade_total.total_amount_of_sells);
+                        // println!("> binancews: Total volume bought: {}", trade_total.total_volume_bought);
+                        // println!("> binancews: Total amount of buys: {}", trade_total.total_amount_of_buys);
+                        // println!("> binancews: Times updated: {}", trade_total.times_updated);
+                        // println!("***********");
                     }
-                    
                 }
-                println!("***********");
                 trade_infos.values_mut().for_each(|info| *info = TradeInfo::default());
             },
         }
@@ -178,21 +160,57 @@ async fn run_treeofalpha_websocket() {
                             }
                         }
                     },
-                    Message::Pong(pong) => {
+                    Message::Pong(_) => {
                         // No message for now
                     },
                     _ => {}
                 }
             },
             _ = interval_tick.tick() => {
-                ws_write.send(Message::Ping(Vec::new())).await.expect("> treeofalpha: Failed to send ping to treeofalpha");
+                match ws_write.send(Message::Ping(Vec::new())).await {
+                    Ok(_) => println!("> treeofalpha: Ping sent successfully"),
+                    Err(e) => println!("> treeofalpha: Failed to send ping to treeofalpha: {}", e),
+                }
             },
         }
     }
 }
 
-//  Helper functions
 
+
+async fn calculate_averages(symbol_trade_averages: Arc<Mutex<SymbolTradeAverages>>, symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>>) {
+    let mut interval = tokio::time::interval(Duration::from_secs(60));
+
+    loop {
+        interval.tick().await;
+
+        let mut trade_averages = symbol_trade_averages.lock().await;
+        let mut trade_total_lock = symbol_trade_totals.lock().await;
+
+        for (symbol, trade_average) in trade_averages.iter_mut() {
+
+            if let Some(trade_total) = trade_total_lock.get_mut(symbol) {
+                let times_updated = trade_total.times_updated;
+
+                if times_updated != 0 {
+                    trade_average.avg_volume_sold = trade_total.total_volume_sold / (times_updated as f64);
+                    trade_average.avg_amount_of_sells = (trade_total.total_amount_of_sells as f64 / times_updated as f64);
+                    trade_average.avg_volume_bought = trade_total.total_volume_bought / (times_updated as f64);
+                    trade_average.avg_amount_of_buys = (trade_total.total_amount_of_buys as f64 / times_updated as f64);
+                } 
+            }
+            println!("> calculate_averages: Averages for {}:", symbol);
+            println!("> calculate_averages: Average volume sold: {}", trade_average.avg_volume_sold);
+            println!("> calculate_averages: Average amount of sells: {}", trade_average.avg_amount_of_sells);
+            println!("> calculate_averages: Average volume bought: {}", trade_average.avg_volume_bought);
+            println!("> calculate_averages: Average amount of buys: {}", trade_average.avg_amount_of_buys);
+
+        }
+    }
+}
+
+
+//  Helper functions
 fn round(x: f64, decimals: u32) -> f64 {
     let y = 10i64.pow(decimals) as f64;
     (x * y).round() / y

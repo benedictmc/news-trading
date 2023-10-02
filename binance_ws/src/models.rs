@@ -105,3 +105,25 @@ pub struct TradeStore {
 
 
 pub type SymbolTradeData = HashMap<String, TradeStore>;
+
+
+#[derive(Default)]
+pub struct TradeTotal {
+    pub total_volume_sold: f64,
+    pub total_amount_of_sells: u32,
+    pub total_volume_bought: f64,
+    pub total_amount_of_buys: u32,
+    pub times_updated: u32,
+}
+
+pub type SymbolTradeTotals = HashMap<String, TradeTotal>;
+
+#[derive(Default)]
+pub struct TradeAverage {
+    pub avg_volume_sold: f64,
+    pub avg_amount_of_sells: f64,
+    pub avg_volume_bought: f64,
+    pub avg_amount_of_buys: f64,
+}
+
+pub type SymbolTradeAverages = HashMap<String, TradeAverage>;
