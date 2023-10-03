@@ -3,7 +3,7 @@
 
 mod models;
 
-use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, SymbolTradeData, SymbolTradeTotals, TradeTotal, SymbolTradeAverages, TradeAverage};
+use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, SymbolTradeData, SymbolTradeTotals, TradeTotal, SymbolTradeAverages, TradeAverage, TradeStats};
 use std::collections::HashMap;
 use tokio::time::{Duration, interval};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
@@ -13,19 +13,20 @@ use futures::SinkExt;
 use std::time::SystemTime;
 use std::sync::{Arc};
 use tokio::sync::Mutex;
+use tokio::runtime::Runtime;  // Don't forget to import Runtime if you are using tokio::main
 
-// const SYMBOLS: [&str; 25] = [
-//     "BTCUSDT", "ETHUSDT",
-//     "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
-//     "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
-//     "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
-//     "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
-//     "RLCUSDT", "THETAUSDT", "XRPUSDT"
-// ];
-
-const SYMBOLS: [&str; 2] = [
-    "BTCUSDT", "ETHUSDT"
+const SYMBOLS: [&str; 25] = [
+    "BTCUSDT", "ETHUSDT",
+    "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
+    "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
+    "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
+    "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
+    "RLCUSDT", "THETAUSDT", "XRPUSDT"
 ];
+
+// const SYMBOLS: [&str; 2] = [
+//     "BTCUSDT", "ETHUSDT"
+// ];
 
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
@@ -35,20 +36,18 @@ const TOA_PING_INTERVAL: u64 = 20;
 async fn main() {
     // Run both WebSocket tasks concurrently
     println!("> Starting WebSocket tasks...");
-    let symbol_trade_totals = Arc::new(Mutex::new(SymbolTradeTotals::default()));
-    let symbol_trade_averages = Arc::new(Mutex::new(SymbolTradeAverages::default()));
+    let symbol_trade_infos = Arc::new(Mutex::new(HashMap::new()));
+    let symbol_trade_stats = Arc::new(Mutex::new(HashMap::new()));
 
     for &symbol in SYMBOLS.iter() {
-        symbol_trade_totals.lock().await.insert(symbol.to_string(), TradeTotal::default());
-        symbol_trade_averages.lock().await.insert(symbol.to_string(), TradeAverage::default());
+        symbol_trade_infos.lock().await.insert(symbol.to_string(), TradeInfo::default());
+        symbol_trade_stats.lock().await.insert(symbol.to_string(), TradeStats::default());
     }
-
-    tokio::spawn(calculate_averages(symbol_trade_averages.clone(), symbol_trade_totals.clone()));
-
-    tokio::join!(run_binance_websocket(symbol_trade_totals.clone()), run_treeofalpha_websocket());
+    tokio::spawn(calculate_averages(symbol_trade_infos.clone(), symbol_trade_stats.clone()));
+    tokio::join!(run_binance_websocket(symbol_trade_infos.clone()), run_treeofalpha_websocket());
 }
 
-async fn run_binance_websocket(symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>>) {
+async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>) {
 
     let symbols_string = SYMBOLS.iter()
     .map(|s| format!("{}@aggTrade", s.to_lowercase()))
@@ -63,8 +62,6 @@ async fn run_binance_websocket(symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>
     println!("Connected with response: {:?}", response);
     let mut stream = ws_stream.split().1;  // Just using the stream part.
 
-    let mut trade_infos: HashMap<String, TradeInfo> = SYMBOLS.iter().map(|&s| (s.to_string(), TradeInfo::default())).collect();
-
     let mut interval_tick = interval(Duration::from_secs(BINANCE_TICK_INTERVAL));
 
     loop {
@@ -77,20 +74,20 @@ async fn run_binance_websocket(symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>
                         Ok(parsed_message) => {
 
                             let symbol = parsed_message.data.s;
+                            let mut trade_info_lock = symbol_trade_infos.lock().await;
 
-                            if let Some(info) = trade_infos.get_mut(&symbol) {
-                                info.count += 1;
-
+                            if let Some(trade_info) = trade_info_lock.get_mut(&symbol) {
+                                trade_info.count += 1;
                                 if let (Ok(price), Ok(qty)) = (parsed_message.data.p.parse::<f64>(), parsed_message.data.q.parse::<f64>()) {
 
-                                    info.total_price += price;
+                                    trade_info.total_price += price;
                                     let volume = price * qty;
                                     if parsed_message.data.m {
-                                        info.volume_sold += volume;
-                                        info.amount_of_sells += 1;
+                                        trade_info.volume_sold += volume;
+                                        trade_info.amount_of_sells += 1;
                                     } else {
-                                        info.volume_bought += volume;
-                                        info.amount_of_buys += 1;
+                                        trade_info.volume_bought += volume;
+                                        trade_info.amount_of_buys += 1;
                                     }
                                 }
                             }
@@ -98,30 +95,7 @@ async fn run_binance_websocket(symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>
                         Err(_) => println!("> binancews: Failed to deserialize message"),
                     }
                 }
-            },
-            _ = interval_tick.tick() => {
-                for (symbol, info) in &trade_infos {
-                    
-                    let mut trade_total_lock = symbol_trade_totals.lock().await;
-                    if let Some(trade_total) = trade_total_lock.get_mut(symbol) {
-
-                        trade_total.total_volume_sold += info.volume_sold;
-                        trade_total.total_amount_of_sells += info.amount_of_sells;
-                        trade_total.total_volume_bought += info.volume_bought;
-                        trade_total.total_amount_of_buys += info.amount_of_buys;
-    
-                        trade_total.times_updated += 1;
-                        // println!("> binancews: Updated totals for {}", symbol);
-                        // println!("> binancews: Total volume sold: {}", trade_total.total_volume_sold);
-                        // println!("> binancews: Total amount of sells: {}", trade_total.total_amount_of_sells);
-                        // println!("> binancews: Total volume bought: {}", trade_total.total_volume_bought);
-                        // println!("> binancews: Total amount of buys: {}", trade_total.total_amount_of_buys);
-                        // println!("> binancews: Times updated: {}", trade_total.times_updated);
-                        // println!("***********");
-                    }
-                }
-                trade_infos.values_mut().for_each(|info| *info = TradeInfo::default());
-            },
+            }
         }
     }
 }
@@ -178,34 +152,46 @@ async fn run_treeofalpha_websocket() {
 
 
 
-async fn calculate_averages(symbol_trade_averages: Arc<Mutex<SymbolTradeAverages>>, symbol_trade_totals: Arc<Mutex<SymbolTradeTotals>>) {
-    let mut interval = tokio::time::interval(Duration::from_secs(60));
+async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>, symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>) {
+    let mut interval = tokio::time::interval(Duration::from_secs(5));
 
     loop {
         interval.tick().await;
+        let start_current_time = get_current_time();
 
-        let mut trade_averages = symbol_trade_averages.lock().await;
-        let mut trade_total_lock = symbol_trade_totals.lock().await;
+        let mut symbol_trade_infos_lock = symbol_trade_infos.lock().await;
 
-        for (symbol, trade_average) in trade_averages.iter_mut() {
+        for (symbol, trade_info) in symbol_trade_infos_lock.iter_mut() {
+            
+            let mut trade_stats_lock = symbol_trade_stats.lock().await;
 
-            if let Some(trade_total) = trade_total_lock.get_mut(symbol) {
-                let times_updated = trade_total.times_updated;
+            if let Some(trade_stats) = trade_stats_lock.get_mut(symbol) {
+                // println!("> Symbol: {}", symbol);
+                trade_stats.amount_of_buys.update(trade_info.amount_of_buys);
+                trade_stats.amount_of_sells.update(trade_info.amount_of_sells);
+                trade_stats.volume_sold.update(trade_info.volume_sold);
+                trade_stats.volume_bought.update(trade_info.volume_bought);
+                // println!("> calculate_averages: The average of amount_of_buys is {}", trade_stats.amount_of_buys.mean);
+                // println!("> calculate_averages: The std_dev of amount_of_buys is {}", trade_stats.amount_of_buys.std_dev());
+                if trade_info.amount_of_buys != 0 && symbol == "BTCUSDT"{
+                    println!("> ********************");
+                    println!("> calculate_averages: Add {} to the symbol {}", trade_info.amount_of_buys, symbol);
+                    println!("> calculate_averages: The average of amount_of_buys is {}", trade_stats.amount_of_buys.mean);
+                    println!("> calculate_averages: The std_dev of amount_of_buys is {}", trade_stats.amount_of_buys.std_dev());
+                    println!("> calculate_averages: The z_score of amount_of_buys is {}", trade_stats.amount_of_buys.z_score(trade_info.amount_of_buys));
+                }
 
-                if times_updated != 0 {
-                    trade_average.avg_volume_sold = trade_total.total_volume_sold / (times_updated as f64);
-                    trade_average.avg_amount_of_sells = (trade_total.total_amount_of_sells as f64 / times_updated as f64);
-                    trade_average.avg_volume_bought = trade_total.total_volume_bought / (times_updated as f64);
-                    trade_average.avg_amount_of_buys = (trade_total.total_amount_of_buys as f64 / times_updated as f64);
-                } 
+            
             }
-            println!("> calculate_averages: Averages for {}:", symbol);
-            println!("> calculate_averages: Average volume sold: {}", trade_average.avg_volume_sold);
-            println!("> calculate_averages: Average amount of sells: {}", trade_average.avg_amount_of_sells);
-            println!("> calculate_averages: Average volume bought: {}", trade_average.avg_volume_bought);
-            println!("> calculate_averages: Average amount of buys: {}", trade_average.avg_amount_of_buys);
 
+            // symbol_stats.amount_of_buys.update(trade_info.amount_of_buys);
+            // println!("> amount_of_buys: {:?}", trade_info.amount_of_buys);
         }
+
+        symbol_trade_infos_lock.values_mut().for_each(|info| *info = TradeInfo::default());
+
+        let end_current_time = get_current_time();
+        // println!("> calculate_averages: Updated averages in {}ms", end_current_time - start_current_time);
     }
 }
 

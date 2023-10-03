@@ -127,3 +127,68 @@ pub struct TradeAverage {
 }
 
 pub type SymbolTradeAverages = HashMap<String, TradeAverage>;
+
+
+pub struct StatsModel {
+    pub n: u32,
+    pub mean: f64,
+    pub m2: f64,
+}
+
+impl StatsModel {
+    fn new() -> Self {
+        StatsModel { n: 0, mean: 0.0, m2: 0.0 }
+    }
+
+    pub fn update<T: Into<f64>>(&mut self, x: T) {
+        self.n += 1;
+        let x = x.into();
+        let delta = x - self.mean;
+        self.mean += delta / self.n as f64;
+        let delta2 = x - self.mean;
+        self.m2 += delta * delta2;
+    }
+
+    pub fn variance(&self) -> f64 {
+        if self.n < 2 {
+            0.0
+        } else {
+            self.m2 / self.n as f64
+        }
+    }
+
+    pub fn std_dev(&self) -> f64 {
+        self.variance().sqrt()
+    }
+
+    pub fn z_score<T: Into<f64>>(&mut self, x: T) -> f64 {
+        let x = x.into();
+        let std_dev = self.std_dev();
+        if std_dev == 0.0 {
+            0.0
+        } else {
+            (x - self.mean) / std_dev 
+        }
+    }
+}
+
+
+pub struct TradeStats {
+    pub volume_sold: StatsModel,
+    pub amount_of_sells: StatsModel,
+    pub volume_bought: StatsModel,
+    pub amount_of_buys: StatsModel,
+}
+
+
+
+impl Default for TradeStats {
+    fn default() -> Self {
+        TradeStats {
+            volume_sold: StatsModel::new(),
+            amount_of_sells: StatsModel::new(),
+            volume_bought: StatsModel::new(),
+            amount_of_buys: StatsModel::new(),
+        }
+    }
+}
