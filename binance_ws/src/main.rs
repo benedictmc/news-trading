@@ -3,7 +3,7 @@
 
 mod models;
 
-use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, SymbolTradeData, SymbolTradeTotals, TradeTotal, SymbolTradeAverages, TradeAverage, TradeStats};
+use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, TradeStats, NewsEvent, Suggestion};
 use std::collections::HashMap;
 use tokio::time::{Duration, interval};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
@@ -13,15 +13,231 @@ use futures::SinkExt;
 use std::time::SystemTime;
 use std::sync::{Arc};
 use tokio::sync::Mutex;
-use tokio::runtime::Runtime;  // Don't forget to import Runtime if you are using tokio::main
 
-const SYMBOLS: [&str; 25] = [
-    "BTCUSDT", "ETHUSDT",
-    "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
-    "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
-    "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
-    "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
-    "RLCUSDT", "THETAUSDT", "XRPUSDT"
+// const SYMBOLS: [&str; 25] = [
+//     "BTCUSDT", "ETHUSDT",
+//     "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
+//     "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
+//     "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
+//     "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
+//     "RLCUSDT", "THETAUSDT", "XRPUSDT"
+// ];
+
+
+const SYMBOLS: [&str; 213] = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BCHUSDT",
+    "XRPUSDT",
+    "EOSUSDT",
+    "LTCUSDT",
+    "TRXUSDT",
+    "ETCUSDT",
+    "LINKUSDT",
+    "XLMUSDT",
+    "ADAUSDT",
+    "XMRUSDT",
+    "DASHUSDT",
+    "ZECUSDT",
+    "XTZUSDT",
+    "BNBUSDT",
+    "ATOMUSDT",
+    "ONTUSDT",
+    "IOTAUSDT",
+    "BATUSDT",
+    "VETUSDT",
+    "NEOUSDT",
+    "QTUMUSDT",
+    "IOSTUSDT",
+    "THETAUSDT",
+    "ALGOUSDT",
+    "ZILUSDT",
+    "KNCUSDT",
+    "ZRXUSDT",
+    "COMPUSDT",
+    "OMGUSDT",
+    "DOGEUSDT",
+    "SXPUSDT",
+    "KAVAUSDT",
+    "BANDUSDT",
+    "RLCUSDT",
+    "WAVESUSDT",
+    "MKRUSDT",
+    "SNXUSDT",
+    "DOTUSDT",
+    "DEFIUSDT",
+    "YFIUSDT",
+    "BALUSDT",
+    "CRVUSDT",
+    "TRBUSDT",
+    "RUNEUSDT",
+    "SUSHIUSDT",
+    "SRMUSDT",
+    "EGLDUSDT",
+    "SOLUSDT",
+    "ICXUSDT",
+    "STORJUSDT",
+    "BLZUSDT",
+    "UNIUSDT",
+    "AVAXUSDT",
+    "FTMUSDT",
+    "HNTUSDT",
+    "ENJUSDT",
+    "FLMUSDT",
+    "TOMOUSDT",
+    "RENUSDT",
+    "KSMUSDT",
+    "NEARUSDT",
+    "AAVEUSDT",
+    "FILUSDT",
+    "RSRUSDT",
+    "LRCUSDT",
+    "MATICUSDT",
+    "OCEANUSDT",
+    "CVCUSDT",
+    "BELUSDT",
+    "CTKUSDT",
+    "AXSUSDT",
+    "ALPHAUSDT",
+    "ZENUSDT",
+    "SKLUSDT",
+    "GRTUSDT",
+    "1INCHUSDT",
+    "CHZUSDT",
+    "SANDUSDT",
+    "ANKRUSDT",
+    "BTSUSDT",
+    "LITUSDT",
+    "UNFIUSDT",
+    "REEFUSDT",
+    "RVNUSDT",
+    "SFPUSDT",
+    "XEMUSDT",
+    "BTCSTUSDT",
+    "COTIUSDT",
+    "CHRUSDT",
+    "MANAUSDT",
+    "ALICEUSDT",
+    "HBARUSDT",
+    "ONEUSDT",
+    "LINAUSDT",
+    "STMXUSDT",
+    "DENTUSDT",
+    "CELRUSDT",
+    "HOTUSDT",
+    "MTLUSDT",
+    "OGNUSDT",
+    "NKNUSDT",
+    "SCUSDT",
+    "DGBUSDT",
+    "1000SHIBUSDT",
+    "BAKEUSDT",
+    "GTCUSDT",
+    "BTCDOMUSDT",
+    "IOTXUSDT",
+    "AUDIOUSDT",
+    "RAYUSDT",
+    "C98USDT",
+    "MASKUSDT",
+    "ATAUSDT",
+    "DYDXUSDT",
+    "1000XECUSDT",
+    "GALAUSDT",
+    "CELOUSDT",
+    "ARUSDT",
+    "KLAYUSDT",
+    "ARPAUSDT",
+    "CTSIUSDT",
+    "LPTUSDT",
+    "ENSUSDT",
+    "PEOPLEUSDT",
+    "ANTUSDT",
+    "ROSEUSDT",
+    "DUSKUSDT",
+    "FLOWUSDT",
+    "IMXUSDT",
+    "API3USDT",
+    "GMTUSDT",
+    "APEUSDT",
+    "WOOUSDT",
+    "FTTUSDT",
+    "JASMYUSDT",
+    "DARUSDT",
+    "GALUSDT",
+    "OPUSDT",
+    "INJUSDT",
+    "STGUSDT",
+    "FOOTBALLUSDT",
+    "SPELLUSDT",
+    "1000LUNCUSDT",
+    "LUNA2USDT",
+    "LDOUSDT",
+    "CVXUSDT",
+    "ICPUSDT",
+    "APTUSDT",
+    "QNTUSDT",
+    "BLUEBIRDUSDT",
+    "FETUSDT",
+    "FXSUSDT",
+    "HOOKUSDT",
+    "MAGICUSDT",
+    "TUSDT",
+    "RNDRUSDT",
+    "HIGHUSDT",
+    "MINAUSDT",
+    "ASTRUSDT",
+    "AGIXUSDT",
+    "PHBUSDT",
+    "GMXUSDT",
+    "CFXUSDT",
+    "STXUSDT",
+    "COCOSUSDT",
+    "BNXUSDT",
+    "ACHUSDT",
+    "SSVUSDT",
+    "CKBUSDT",
+    "PERPUSDT",
+    "TRUUSDT",
+    "LQTYUSDT",
+    "USDCUSDT",
+    "IDUSDT",
+    "ARBUSDT",
+    "JOEUSDT",
+    "TLMUSDT",
+    "AMBUSDT",
+    "LEVERUSDT",
+    "RDNTUSDT",
+    "HFTUSDT",
+    "XVSUSDT",
+    "BLURUSDT",
+    "EDUUSDT",
+    "IDEXUSDT",
+    "SUIUSDT",
+    "1000PEPEUSDT",
+    "1000FLOKIUSDT",
+    "UMAUSDT",
+    "RADUSDT",
+    "KEYUSDT",
+    "COMBOUSDT",
+    "NMRUSDT",
+    "MAVUSDT",
+    "MDTUSDT",
+    "XVGUSDT",
+    "WLDUSDT",
+    "PENDLEUSDT",
+    "ARKMUSDT",
+    "AGLDUSDT",
+    "YGGUSDT",
+    "DODOXUSDT",
+    "BNTUSDT",
+    "OXTUSDT",
+    "SEIUSDT",
+    "CYBERUSDT",
+    "HIFIUSDT",
+    "ARKUSDT",
+    "FRONTUSDT",
+    "GLMRUSDT",
+    "BICOUSDT"
 ];
 
 // const SYMBOLS: [&str; 2] = [
@@ -38,13 +254,15 @@ async fn main() {
     println!("> Starting WebSocket tasks...");
     let symbol_trade_infos = Arc::new(Mutex::new(HashMap::new()));
     let symbol_trade_stats = Arc::new(Mutex::new(HashMap::new()));
+    let news_event_log = Arc::new(Mutex::new(HashMap::new()));
 
     for &symbol in SYMBOLS.iter() {
         symbol_trade_infos.lock().await.insert(symbol.to_string(), TradeInfo::default());
         symbol_trade_stats.lock().await.insert(symbol.to_string(), TradeStats::default());
     }
+    tokio::spawn(focus_new_event_log(news_event_log.clone()));
     tokio::spawn(calculate_averages(symbol_trade_infos.clone(), symbol_trade_stats.clone()));
-    tokio::join!(run_binance_websocket(symbol_trade_infos.clone()), run_treeofalpha_websocket());
+    tokio::join!(run_binance_websocket(symbol_trade_infos.clone()), run_treeofalpha_websocket(news_event_log.clone()));
 }
 
 async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>) {
@@ -62,7 +280,7 @@ async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, Tra
     println!("Connected with response: {:?}", response);
     let mut stream = ws_stream.split().1;  // Just using the stream part.
 
-    let mut interval_tick = interval(Duration::from_secs(BINANCE_TICK_INTERVAL));
+    // let interval_tick = interval(Duration::from_secs(BINANCE_TICK_INTERVAL));
 
     loop {
         tokio::select! {
@@ -100,7 +318,7 @@ async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, Tra
     }
 }
 
-async fn run_treeofalpha_websocket() {
+async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>) {
     let url = Url::parse("wss://news.treeofalpha.com/ws").unwrap();
 
     let (mut ws_stream, response) = connect_async(url).await.expect("Failed to connect to treeofalpha");
@@ -115,20 +333,21 @@ async fn run_treeofalpha_websocket() {
             Some(Ok(message)) = ws_read.next() => {
                 match message {
                     Message::Text(text) => {
-                        // First, try to parse as TreeOfAlphaTweet
                         match serde_json::from_str::<TreeOfAlphaNews>(&text) {
                             Ok(news_message) => {
                                 let current_time = get_current_time();
                                 println!("> treeofalpha: Received news at {}: {:?}", current_time, news_message);
+                                process_suggestions(&news_message.suggestions, &news_event_log, &news_message.title).await;
                             },
                             Err(_) => {
                                 match serde_json::from_str::<TreeOfAlphaTweet>(&text) {
                                     Ok(tweet_message) => {
                                         let current_time = get_current_time();
                                         println!("> treeofalpha: Received tweet at {}: {:?}", current_time, tweet_message);
+                                        process_suggestions(&tweet_message.suggestions, &news_event_log, &tweet_message.title).await;
                                     },
                                     Err(e) => {
-                                        println!("> treeofalpha: Failed to deserialize both formats: {}", e);
+                                        println!("> treeofalpha: Failed to deserialize both formats: {} {}", e, text);
                                     }
                                 }
                             }
@@ -157,7 +376,7 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
 
     loop {
         interval.tick().await;
-        let start_current_time = get_current_time();
+        // let start_current_time = get_current_time();
 
         let mut symbol_trade_infos_lock = symbol_trade_infos.lock().await;
 
@@ -166,32 +385,67 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
             let mut trade_stats_lock = symbol_trade_stats.lock().await;
 
             if let Some(trade_stats) = trade_stats_lock.get_mut(symbol) {
-                // println!("> Symbol: {}", symbol);
                 trade_stats.amount_of_buys.update(trade_info.amount_of_buys);
                 trade_stats.amount_of_sells.update(trade_info.amount_of_sells);
                 trade_stats.volume_sold.update(trade_info.volume_sold);
                 trade_stats.volume_bought.update(trade_info.volume_bought);
-                // println!("> calculate_averages: The average of amount_of_buys is {}", trade_stats.amount_of_buys.mean);
-                // println!("> calculate_averages: The std_dev of amount_of_buys is {}", trade_stats.amount_of_buys.std_dev());
-                if trade_info.amount_of_buys != 0 && symbol == "BTCUSDT"{
-                    println!("> ********************");
-                    println!("> calculate_averages: Add {} to the symbol {}", trade_info.amount_of_buys, symbol);
-                    println!("> calculate_averages: The average of amount_of_buys is {}", trade_stats.amount_of_buys.mean);
-                    println!("> calculate_averages: The std_dev of amount_of_buys is {}", trade_stats.amount_of_buys.std_dev());
-                    println!("> calculate_averages: The z_score of amount_of_buys is {}", trade_stats.amount_of_buys.z_score(trade_info.amount_of_buys));
-                }
-
-            
             }
-
-            // symbol_stats.amount_of_buys.update(trade_info.amount_of_buys);
-            // println!("> amount_of_buys: {:?}", trade_info.amount_of_buys);
         }
 
         symbol_trade_infos_lock.values_mut().for_each(|info| *info = TradeInfo::default());
 
-        let end_current_time = get_current_time();
+        // let end_current_time = get_current_time();
         // println!("> calculate_averages: Updated averages in {}ms", end_current_time - start_current_time);
+    }
+}
+
+async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>) {
+    let mut interval = tokio::time::interval(Duration::from_secs(5));
+
+    loop {
+        interval.tick().await;
+        // let start_current_time = get_current_time();
+
+        let news_event_log_lock = news_event_log.lock().await;
+        println!("*******");
+        println!("> focus_new_event_log: The length of the news event log is {}", news_event_log_lock.len());
+
+        for (binance_symbol, news_event) in news_event_log_lock.iter() {
+            println!("> focus_new_event_log: binance_symbol: {}", binance_symbol);
+            println!("> focus_new_event_log: News event title {}", news_event.news_title);            
+        }
+        println!("*******");
+
+
+        // let end_current_time = get_current_time();
+        // println!("> calculate_averages: Updated averages in {}ms", end_current_time - start_current_time);
+    }
+}
+
+
+async fn process_suggestions(suggestions: &[Suggestion], news_event_log: &Arc<Mutex<HashMap<String, NewsEvent>>>, title: &str) {
+    for suggestion in suggestions {
+        for symbols in &suggestion.symbols {
+            if symbols.get("exchange") == Some(&"binance-futures".to_string()) {
+                if let Some(exchange_symbol) = symbols.get("symbol") {
+                    let binance_symbol = exchange_symbol.to_string();
+                    let mut lock = news_event_log.lock().await;
+                    if let Some(news_event) = lock.get_mut(&binance_symbol) {
+                        news_event.news_occurance += 1;
+                        news_event.time_to_end = get_current_time() + 400000;
+                    } else {
+                        let news_event = NewsEvent {
+                            binance_symbol: binance_symbol.clone(),
+                            time_started: get_current_time(),
+                            news_occurance: 1,
+                            news_title: title.to_string(),
+                            time_to_end: get_current_time() + 400000,
+                        };
+                        lock.insert(binance_symbol, news_event);
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -74,10 +74,10 @@ pub struct TreeOfAlphaNews {
     en: String,
     firstPrice: HashMap<String, f64>,
     source: String,
-    suggestions: Vec<Suggestion>,
+    pub suggestions: Vec<Suggestion>,
     symbols: Vec<String>,
     time: u64,
-    title: String,
+    pub title: String,
     url: String,
     _id: String,
 }
@@ -191,4 +191,13 @@ impl Default for TradeStats {
             amount_of_buys: StatsModel::new(),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct NewsEvent {
+    pub binance_symbol: String,
+    pub time_started: u128,
+    pub news_occurance: u64,
+    pub news_title: String,
+    pub time_to_end: u128,
 }
