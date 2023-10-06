@@ -3,17 +3,25 @@
 
 mod models;
 
-use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, TreeOfAlphaNewsVariation, TradeStats, NewsEvent, Suggestion};
+extern crate reqwest;
+extern crate hex;
+
+use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, TreeOfAlphaNewsVariation, TradeStats, NewsEvent, Suggestion, BinanceError};
 use std::collections::HashMap;
 use tokio::time::{Duration, interval, sleep};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use url::Url;
 use futures::StreamExt;
 use futures::SinkExt;
-use std::time::SystemTime;
 use std::sync::{Arc};
 use tokio::sync::Mutex;
 use std::fs;
+use std::env;
+use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
+use std::time::{SystemTime, UNIX_EPOCH};
+use hmac::{Hmac, Mac, NewMac};
+use reqwest::header;
+use sha2::Sha256;
 
 const SYMBOLS: [&str; 213] = [
     "BTCUSDT",
@@ -234,8 +242,10 @@ const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
 
 
+
 #[tokio::main]
 async fn main() {
+
     // Run both WebSocket tasks concurrently
     println!("> Starting WebSocket tasks...");
     let symbol_trade_infos = Arc::new(Mutex::new(HashMap::new()));
@@ -484,6 +494,25 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         println!("> focus_new_event_log: total_zscore: {}", total_zscore);
                         println!("*******");
                     }
+
+                    if total_zscore > 100.0{
+
+                        println!("*******");
+                        println!("> focus_new_event_log: binance_symbol: {}", binance_symbol);
+                        println!("> focus_new_event_log: News event title {}", news_event.news_title);
+                        println!("> GOING TO BUY!!");
+
+                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, 2);
+                        let sl_price = round(trade_price * 0.995, 2);
+                        let tp_price = round(trade_price * 1.01, 2);
+
+                        send_futures_order(binance_symbol, "BUY", "LIMIT",  200.0, trade_price, 5, sl_price, tp_price).await;
+                        std::process::exit(1);  // Exits the program with exit code 1
+
+                    }
+
+                   
+
                     
                 }
             }
@@ -504,7 +533,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
         }
     }
 }
-
 
 async fn process_suggestions(suggestions: &[Suggestion], news_event_log: &Arc<Mutex<HashMap<String, NewsEvent>>>, title: &str) {
     for suggestion in suggestions {
@@ -561,4 +589,129 @@ async fn save_news_event_to_file(news_event: &NewsEvent) -> Result<(), Box<dyn s
     fs::write(file_path, json)?;
 
     Ok(())
+}
+
+async fn send_futures_order(
+    symbol: &str,
+    side: &str,
+    type_: &str,
+    quantity: f64,
+    price: f64,
+    leverage: i32,
+    stop_loss_price: f64,
+    take_profit_price: f64,
+) -> Result<(), reqwest::Error> {
+
+    let api_key = env::var("BINANCE_API_KEY").expect("API_KEY not set");
+    let api_secret = env::var("BINANCE_API_SECRET").expect("API_SECRET not set");
+    
+    // To change leverage
+    let leverage_result = change_leverage(&symbol, leverage).await;
+
+    if let Err(e) = leverage_result {
+        eprintln!("Failed to change leverage: {}", e);
+        return Err(e);
+    }
+
+    let opposite_side = if side == "BUY" { "SELL" } else { "BUY" };
+
+    let usdt_amount = round((quantity / price)*leverage as f64, 2);
+
+    println!("symbol_amount: {}", usdt_amount);
+    
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    let params = format!(
+        "symbol={}&side={}&type={}&quantity={}&price={}&timeInForce=GTC&timestamp={}",
+        symbol, side, type_, usdt_amount, price, timestamp
+    );
+    submit_trade(&params).await;
+
+
+    let stop_loss_params = format!(
+        "symbol={}&side={}&type=STOP_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
+        symbol, opposite_side, usdt_amount, stop_loss_price, timestamp
+    );
+    submit_trade(&stop_loss_params).await;
+
+
+    let take_profit_params = format!(
+        "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
+        symbol, opposite_side, usdt_amount, take_profit_price, timestamp
+    );
+    submit_trade(&take_profit_params).await;
+
+    Ok(())
+}
+
+
+async fn change_leverage(symbol: &str, leverage: i32) -> Result<(), reqwest::Error> {
+    let client = reqwest::Client::new();
+
+    let api_key = env::var("BINANCE_API_KEY").expect("API_KEY not set");
+    let api_secret = env::var("BINANCE_API_SECRET").expect("API_SECRET not set");
+
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    // Change the leverage to 5x
+    let leverage_params = format!("symbol={}&leverage={}&timestamp={}", symbol, leverage, timestamp);
+    let leverage_signature = get_signature(&api_secret, &leverage_params);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("X-MBX-APIKEY", HeaderValue::from_str(&api_key).unwrap());
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"));
+
+    let change_leverage_url = format!("https://fapi.binance.com/fapi/v1/leverage?{}&signature={}", leverage_params, leverage_signature);
+
+    let change_leverage_response = client.post(&change_leverage_url).headers(headers).send().await?;
+
+    // Check for errors in the response
+    if change_leverage_response.status().is_success() {
+        println!("Leverage changed successfully");
+        Ok(())
+    } else {
+        // Output the error message from Binance
+        let error_msg: BinanceError = change_leverage_response.json().await?;
+        println!("Failed to change leverage: {}", error_msg.msg);
+        Ok(())
+    }
+}
+
+
+async fn submit_trade(params: &str) -> Result<(), reqwest::Error>{
+    let client = reqwest::Client::new();
+    
+    let api_key = env::var("BINANCE_API_KEY").expect("API_KEY not set");
+    let api_secret = env::var("BINANCE_API_SECRET").expect("API_SECRET not set");
+   
+    let signature = get_signature(&api_secret, &params);
+
+    println!("signature: {}", signature);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("X-MBX-APIKEY", HeaderValue::from_str(&api_key).unwrap());
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"));
+    
+    let url = format!("https://fapi.binance.com/fapi/v1/order?{}&signature={}", params, signature);
+    println!("url: {}", url);
+    
+    let response = client.post(&url).headers(headers).send().await?;
+    
+    if response.status().is_success() {
+        println!("Order placed successfully");
+    } else {
+        // The request failed, print the error message
+        let error_text = response.text().await?;
+        println!("Error: {}", error_text);
+    }
+
+    Ok(())
+}
+
+
+fn get_signature(api_secret: &str, request: &str) -> String {
+    let mut signed_key = Hmac::<Sha256>::new_from_slice(api_secret.as_bytes()).unwrap();
+    signed_key.update(request.as_bytes());
+    let signature = hex::encode(signed_key.finalize().into_bytes());
+    signature
 }

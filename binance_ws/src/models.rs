@@ -193,8 +193,6 @@ pub struct TradeStats {
     pub amount_of_buys: StatsModel,
 }
 
-
-
 impl Default for TradeStats {
     fn default() -> Self {
         TradeStats {
@@ -217,4 +215,16 @@ pub struct NewsEvent {
     pub max_price_diff_neg: f64,
     pub max_price_diff_pos: f64,
     pub max_z_score: f64,
+}
+
+#[derive(Deserialize)]
+struct Config {
+    api_key: String,
+    api_secret: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BinanceError {
+    pub code: i64,
+    pub msg: String,
 }
