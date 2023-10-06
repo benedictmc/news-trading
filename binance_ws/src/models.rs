@@ -2,7 +2,7 @@
 // Models for News Trading application
 // Copyright: Benedict McGovern
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 
@@ -80,6 +80,19 @@ pub struct TreeOfAlphaNews {
     pub title: String,
     url: String,
     _id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TreeOfAlphaNewsVariation {
+    pub title: String,
+    source: String,
+    url: String,
+    time: u64,
+    symbols: Vec<String>,
+    en: String,
+    _id: String,
+    pub suggestions: Vec<Suggestion>,
+    delay: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -193,11 +206,15 @@ impl Default for TradeStats {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NewsEvent {
     pub binance_symbol: String,
     pub time_started: u128,
     pub news_occurance: u64,
     pub news_title: String,
     pub time_to_end: u128,
+    pub start_price: f64,
+    pub max_price_diff_neg: f64,
+    pub max_price_diff_pos: f64,
+    pub max_z_score: f64,
 }
