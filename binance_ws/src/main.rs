@@ -15,16 +15,6 @@ use std::sync::{Arc};
 use tokio::sync::Mutex;
 use std::fs;
 
-// const SYMBOLS: [&str; 25] = [
-//     "BTCUSDT", "ETHUSDT",
-//     "APTUSDT", "ASTRUSDT", "BALUSDT", "BNBUSDT", "C98USDT",
-//     "CELOUSDT", "CHZUSDT", "CRVUSDT", "DOGEUSDT", "GALUSDT",
-//     "GTCUSDT", "HBARUSDT", "HFTUSDT", "ICPUSDT", "INJUSDT",
-//     "KLAYUSDT", "LEVERUSDT", "MASKUSDT", "ONTUSDT", "QTUMUSDT",
-//     "RLCUSDT", "THETAUSDT", "XRPUSDT"
-// ];
-
-
 const SYMBOLS: [&str; 213] = [
     "BTCUSDT",
     "ETHUSDT",
@@ -240,11 +230,6 @@ const SYMBOLS: [&str; 213] = [
     "GLMRUSDT",
     "BICOUSDT"
 ];
-
-// const SYMBOLS: [&str; 2] = [
-//     "BTCUSDT", "ETHUSDT"
-// ];
-
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
 
@@ -336,24 +321,30 @@ async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, New
                         Some(Ok(message)) = ws_read.next() => {
                             match message {
                                 Message::Text(text) => {
+                                    let current_time = get_current_time();
                                     match serde_json::from_str::<TreeOfAlphaNews>(&text) {
                                         Ok(news_message) => {
-                                            let current_time = get_current_time();
-                                            println!("> treeofalpha: Received news at {}: {:?}", current_time, news_message);
+                                            println!("> treeofalpha: Received news at {}", current_time);
+                                            println!("> treeofalpha: Title {}", news_message.title );
+
                                             process_suggestions(&news_message.suggestions, &news_event_log, &news_message.title).await;
                                         },
                                         Err(_) => {
                                             match serde_json::from_str::<TreeOfAlphaNewsVariation>(&text) {
                                                 Ok(news_variation_message) => {
-                                                    let current_time = get_current_time();
-                                                    println!("> treeofalpha: Received news at {}: {:?}", current_time, news_variation_message);
+                                                   
+                                                    println!("> treeofalpha: Received news variation at {}", current_time);
+                                                    println!("> treeofalpha: Title {}", news_variation_message.title );
+        
                                                     process_suggestions(&news_variation_message.suggestions, &news_event_log, &news_variation_message.title).await;
                                                 },
                                                 Err(_) => {
                                                     match serde_json::from_str::<TreeOfAlphaTweet>(&text) {
                                                         Ok(tweet_message) => {
-                                                            let current_time = get_current_time();
-                                                            println!("> treeofalpha: Received tweet at {}: {:?}", current_time, tweet_message);
+                                                            println!("> treeofalpha: Received tweet at {}", current_time);
+                                                            println!("> treeofalpha: Title {}", tweet_message.title );
+                                                            println!("> treeofalpha: Body {}", tweet_message.body );
+
                                                             process_suggestions(&tweet_message.suggestions, &news_event_log, &tweet_message.body).await;
                                                         },
                                                         Err(e) => {
@@ -373,7 +364,7 @@ async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, New
                         },
                         _ = interval_tick.tick() => {
                             match ws_write.send(Message::Ping(Vec::new())).await {
-                                Ok(_) => println!("> treeofalpha: Ping sent successfully"),
+                                Ok(_) => {},
                                 Err(e) => {
                                     println!("> treeofalpha: Failed to send ping to treeofalpha: {}", e);
                                     break;  // Break inner loop to trigger reconnection
@@ -440,9 +431,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
 
         let mut events_to_remove = Vec::new();
 
-        // println!("*******");
-        // println!("> focus_new_event_log: The length of the news event log is {}", news_event_log_lock.len());
-        
         let current_time = get_current_time();
 
         for (binance_symbol, news_event) in news_event_log_lock.iter_mut() {
@@ -460,13 +448,15 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
 
                 if let Some(trade_stats) = trade_stats_lock.get_mut(binance_symbol) {
                     let current_price = latest_trade_info.total_price / latest_trade_info.count as f64;
-                    
-                    if current_price != 0.0{
+
+
+                    if !current_price.is_nan() {
                         if news_event.start_price == 0.0{
                             news_event.start_price = current_price.clone();
+                            println!("start_price set " )
                         }
                                 
-                        let price_diff = ((current_price - news_event.start_price) / news_event.start_price )* 100.0;
+                        let price_diff = (current_price - news_event.start_price) / news_event.start_price ;
 
                         if price_diff > news_event.max_price_diff_pos {
                             news_event.max_price_diff_pos = price_diff.clone();
@@ -497,16 +487,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                     
                 }
             }
-
-            // let mut trade_stats_lock = symbol_trade_stats.lock().await;
-
-            // if let Some(trade_stats) = trade_stats_lock.get_mut(symbol) {
-            //     println!("> focus_new_event_log: trade_stats.amount_of_buys Z: {}", trade_stats.amount_of_buys);
-            //     println!("> focus_new_event_log: trade_stats.amount_of_sells: {}", trade_stats.amount_of_sells);
-            //     println!("> focus_new_event_log: trade_stats.volume_sold: {}", trade_stats.volume_sold);
-            //     println!("> focus_new_event_log: trade_stats.volume_bought: {}", trade_stats.volume_bought);
-            // }
-
         }
         
 
@@ -522,11 +502,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
             }
             news_event_log_lock.remove(&key);
         }
-
-
-        let end_current_time = get_current_time();
-        // println!("*******");
-        // println!("> focus_new_event_log: Updated averages in {}ns", end_current_time - start_current_time);
     }
 }
 

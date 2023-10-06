@@ -92,7 +92,7 @@ pub struct TreeOfAlphaNewsVariation {
     en: String,
     _id: String,
     pub suggestions: Vec<Suggestion>,
-    delay: u64,
+    delay: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
