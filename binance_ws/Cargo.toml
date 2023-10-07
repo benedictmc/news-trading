@@ -17,3 +17,8 @@ reqwest = { version = "0.11.22", features = ["json", "blocking"] }
 hmac = "0.11.0"
 sha2 = "0.9"
 hex = "0.4"
+appinsights = "0.2.3"
+lazy_static = "1.4"
+opentelemetry = { version = "0.20" }
+opentelemetry-stdout = { version = "0.1" }
+opentelemetry-application-insights = "0.27.0"

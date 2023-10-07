@@ -22,6 +22,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use hmac::{Hmac, Mac, NewMac};
 use reqwest::header;
 use sha2::Sha256;
+use appinsights::{TelemetryConfig, TelemetryClient };
+use appinsights::telemetry::{EventTelemetry, Telemetry};
+use lazy_static::lazy_static;
+use appinsights::telemetry::SeverityLevel;
+use opentelemetry::trace::Tracer as _;
+
 
 const SYMBOLS: [&str; 213] = [
     "BTCUSDT",
@@ -242,12 +248,11 @@ const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
 
 
-
 #[tokio::main]
 async fn main() {
-
     // Run both WebSocket tasks concurrently
     println!("> Starting WebSocket tasks...");
+
     let symbol_trade_infos = Arc::new(Mutex::new(HashMap::new()));
     let symbol_trade_stats = Arc::new(Mutex::new(HashMap::new()));
     let news_event_log = Arc::new(Mutex::new(HashMap::new()));
@@ -314,6 +319,7 @@ async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, Tra
         }
     }
 }
+
 
 async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>) {
     let url = Url::parse("wss://news.treeofalpha.com/ws").unwrap();
@@ -393,7 +399,6 @@ async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, New
         sleep(Duration::from_secs(5)).await;  // Wait for 5 seconds before attempting to reconnect
     }
 }
-
 
 
 async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>, symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>) {
@@ -517,7 +522,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                 }
             }
         }
-        
 
         drop(news_event_log_lock);
         let mut news_event_log_lock = news_event_log.lock().await;
