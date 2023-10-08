@@ -7,6 +7,8 @@ from azure.core.exceptions import ResourceNotFoundError
 import io
 from agg_trades_downloader import retrieve_agg_trades
 from retrieve_news import GetCryptoNews
+import numpy as np
+
 
 load_dotenv()
 
@@ -18,9 +20,36 @@ ACCOUNT_KEY = os.environ['AZURE_STORAGE_ACCOUNT_KEY']
 ACCOUNT_URL = os.environ['AZURE_STORAGE_ACCOUNT_URL']
 
 
+# Example config
+# {
+#     "columns": [
+#         "avg_price",
+#         "sum_asset_bought",
+#         "num_of_trades_bought",
+#         "sum_asset_sold",
+#         "num_of_trades_sold",
+#     ], 
+#     "features": [
+#         {
+#             "type": "zscore",
+#             "columns": [
+#                 "sum_asset_bought",
+#                 "num_of_trades_bought",
+#                 "sum_asset_sold",
+#                 "num_of_trades_sold",
+#             ]
+#         }
+#     ], 
+#     "signal": {
+#         "column": "sum_asset_sold_zscore",
+#         "threshold": 100,
+#     }
+# }
+
+
 class RetriveDataset():
 
-    def __init__(self, symbol, date, recompile=False, signal_window=None, signal_threshold=None, load_source="local"):
+    def __init__(self, symbol, date, config, recompile=False, load_source="local"):
         print("=== RetriveDataset ===")
         print("> Initializing RetriveDataset...")
         print(f"> Symbol: {symbol}")
@@ -28,8 +57,7 @@ class RetriveDataset():
 
         self.aggregation_window = '1S'
         self.recompile = recompile
-        self.signal_window = signal_window
-        self.signal_threshold = signal_threshold
+        self.config = config
 
         self.data_type = "aggTrades"
         self.symbol = symbol
@@ -40,36 +68,50 @@ class RetriveDataset():
         self.agg_trades_filepath = f"aggTrades/{self.interval}/{symbol}/{symbol}-aggTrades-{date}.csv"
         self.local_trading_dataset_filepath = f"local/data/{self.symbol}/trading_dataset_{self.date}.csv"
         self.trading_dataset_filepath = f"trading_datasets/{self.symbol}/trading_dataset_{self.date}.csv"
-        self.indicator_dict = {
-            "pct_change": {
-                "window" : [5, 10, 20, 60]
-            }
-        }
     
     
     def retrieve_trading_dataset(self):
         
         trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath, retrieve_type="trading dataset")
+        trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
 
-        if trading_dataset_df is None or self.recompile:
-            reduced_trades_df = self.retrieve_reduced_trades()
-            trading_dataset_df = self.add_indicators(reduced_trades_df)
-            trading_dataset_df = self.add_news_signals(trading_dataset_df)
+        if trading_dataset_df is None:
+            trading_dataset_df = self.build_trading_dataset()
 
-            if trading_dataset_df["news_signal"].sum() > 0:
-                trading_dataset_df = self.add_total_zscore(trading_dataset_df)
-            else:
-                trading_dataset_df["total_z_score"] = 0
+        if len(set(self.config["columns"]) - set(trading_dataset_df.columns)) > 0:
+            print("> Columns missing from trading dataset")
+            raise Exception("Columns missing from trading dataset")
+        
+        needed_columns = self.config["columns"]
+        
+        added_column = False
 
-            trading_dataset_df = self.add_signal(trading_dataset_df)
+        for feature in self.config["features"]:
+            feature_type = feature['type']
 
+            for column in feature["columns"]:
+                needed_columns.append(f"{column}_{feature_type}")
+                # Build new column if doesn't exist 
+                if f"{column}_{feature_type}" not in trading_dataset_df.columns:
+                    if feature_type == "zscore":
+                        trading_dataset_df = self.add_zscore(column, trading_dataset_df)
+                        added_column = True
+        
+        if added_column:
             self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 
-        # Replace NaN or Inf with 0
+        if "signal" in self.config:
+            trading_dataset_df = self.add_signal(trading_dataset_df, self.config["signal"])
+            needed_columns.append("signal")
+
+
+        trading_dataset_df = trading_dataset_df[needed_columns]
+        
         trading_dataset_df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
+        trading_dataset_df.index = pd.to_datetime(trading_dataset_df.index)
 
         return trading_dataset_df
-
+    
 
     def retrieve_reduced_trades(self):
         print("> Retrieving reduced trades...")
@@ -166,48 +208,37 @@ class RetriveDataset():
         return df
 
 
-    def add_signal(self, df):
-        # Create a rolling window for news_signal
-        df['temp_rolling_news'] = df['news_signal'].rolling(window=5).max().fillna(0)
-        
-        # Shift the avg_price
-        df['temp_shifted_avg_price'] = df['avg_price'].shift(periods=5, fill_value=df['avg_price'].iloc[0])
-        
-        # Define the conditions
-        zscore_condition = df['total_z_score'] > 100
-        news_signal_condition = df['temp_rolling_news'] == 1
-        avg_price_increase = df['avg_price'] > df['temp_shifted_avg_price']
-        avg_price_decrease = df['avg_price'] < df['temp_shifted_avg_price']
+    def add_signal(self, df, signal_config):
+        print("> Adding signal")
 
-        # Assign signals based on conditions
-        df.loc[zscore_condition & news_signal_condition & avg_price_increase, 'signal'] = 1
-        df.loc[zscore_condition & news_signal_condition & avg_price_decrease, 'signal'] = -1
-        df['signal'].fillna(0, inplace=True)  # Fill NaN values with 0
+        # Weird bug where signal is alerady in df
+        if 'signal' in df.columns:
+            print("> Signal column already in df")
+            df = df.drop(columns=['signal'])
 
-        # Drop temporary columns
-        df.drop(columns=['temp_rolling_news', 'temp_shifted_avg_price'], inplace=True)
+        signal_col = signal_config["column"]
+        threshold = signal_config["threshold"]
+
+        if signal_col not in df.columns:
+            print("> Error: Signal column not in trading dataset")
+            return None
+        
+        df['signal'] = np.where(
+            (df[signal_col] > threshold),
+            1, 0
+        )
         
         return df
 
 
+    def add_zscore(self, column, df):
+        print("> Adding column-wise z-scores...")
 
-    def add_total_zscore(self, df):
-        print("> Adding total z-score...")
-        # Columns to be considered for z-score calculation
-        cols_to_consider = [col for col in df.columns if col not in ["avg_price", "index", "news_signal", "signal"]]
-        
-        # If "pct" not in column name, filter out rows where the value is 0. Otherwise, use original df.
-        valid_data = {col: df[df[col] > 0] if "pct" not in col else df for col in cols_to_consider}
-        
         # Compute means and standard deviations
-        means = {col: valid_data[col][col].mean() for col in cols_to_consider}
-        std_devs = {col: valid_data[col][col].std() for col in cols_to_consider}
+        col_mean = df[column].mean()
+        col_std = df[column].std()
         
-        # Compute z-scores for entire columns in one go (vectorized)
-        z_scores = {col: (df[col] - means[col]) / std_devs[col] for col in cols_to_consider}
-        
-        # Aggregate z-scores (this will sum across columns for each row)
-        df['total_z_score'] = pd.DataFrame(z_scores).abs().sum(axis=1)
+        df[f'{column}_zscore'] = (df[column] - col_mean) / col_std
 
         return df
 
@@ -299,6 +330,5 @@ class RetriveDataset():
 
 
 # SYMBOLS = [ 'LRCUSDT','BTCUSDT','ZECUSDT','EOSUSDT','SOLUSDT','XEMUSDT','OPUSDT','SNXUSDT','1INCHUSDT','TRXUSDT','QTUMUSDT','AGIXUSDT','RUNEUSDT','FLOWUSDT','BNBUSDT','HFTUSDT','APTUSDT','ANKRUSDT','DOGEUSDT','ASTRUSDT','RDNTUSDT','STXUSDT','CTKUSDT','ETHUSDT','NEARUSDT','TUSDT','IOTXUSDT','GRTUSDT','UNIUSDT','ZRXUSDT','DYDXUSDT','ICPUSDT','NEOUSDT','BNXUSDT','SANDUSDT','EGLDUSDT','SSVUSDT','GTCUSDT','MASKUSDT','AMBUSDT','DARUSDT','CELOUSDT','AAVEUSDT','HBARUSDT','ARBUSDT','SXPUSDT','ANTUSDT','ZENUSDT','ICXUSDT','XTZUSDT','YFIUSDT','RSRUSDT','PEOPLEUSDT','DGBUSDT','LINKUSDT','GALUSDT','FTMUSDT','FXSUSDT','TLMUSDT','CELRUSDT','SUSHIUSDT','ALPHAUSDT','ARPAUSDT','HOOKUSDT','MINAUSDT','COTIUSDT','JOEUSDT','ENSUSDT','WOOUSDT','INJUSDT','SKLUSDT','USDCUSDT','IMXUSDT','SFPUSDT','DASHUSDT','MAGICUSDT','PERPUSDT','CTSIUSDT','CHZUSDT','QNTUSDT','LEVERUSDT','IOTAUSDT','IOSTUSDT','WAVESUSDT','TOMOUSDT','BLZUSDT','C98USDT','VETUSDT','ZILUSDT','GMTUSDT','DOTUSDT','ROSEUSDT','LDOUSDT','XLMUSDT','CFXUSDT','LITUSDT','XVSUSDT','OCEANUSDT','BANDUSDT','HOTUSDT','LTCUSDT','AVAXUSDT','ENJUSDT','GALAUSDT','BATUSDT','FETUSDT','BALUSDT','FILUSDT','KAVAUSDT','RNDRUSDT','LPTUSDT','AUDIOUSDT','ALGOUSDT','XRPUSDT','OGNUSDT','GMXUSDT','ACHUSDT','ONTUSDT','KLAYUSDT','REEFUSDT','AXSUSDT','HIGHUSDT','LINAUSDT','ALICEUSDT','DUSKUSDT','FLMUSDT','PHBUSDT','ATOMUSDT','MATICUSDT','LQTYUSDT','STORJUSDT','CKBUSDT','KNCUSDT','MKRUSDT','APEUSDT','API3USDT','NKNUSDT','RVNUSDT','CHRUSDT','MANAUSDT','CRVUSDT','STMXUSDT','ADAUSDT','ATAUSDT','STGUSDT','ARUSDT','IDUSDT','RLCUSDT','THETAUSDT','BLURUSDT','ONEUSDT','TRUUSDT','TRBUSDT','COMPUSDT','IDEXUSDT','SUIUSDT','EDUUSDT','MTLUSDT','1000PEPEUSDT','1000FLOKIUSDT','DENTUSDT','BCHUSDT','1000XECUSDT','JASMYUSDT','UMAUSDT','BELUSDT','1000SHIBUSDT','RADUSDT','XMRUSDT','1000LUNCUSDT','SPELLUSDT','KEYUSDT','COMBOUSDT','UNFIUSDT','CVXUSDT','ETCUSDT','MAVUSDT','MDTUSDT','XVGUSDT','NMRUSDT','BAKEUSDT','WLDUSDT','PENDLEUSDT','ARKMUSDT','AGLDUSDT','YGGUSDT','SEIUSDT' ]
-
 
 
