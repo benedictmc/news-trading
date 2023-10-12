@@ -34,45 +34,46 @@ config = {
 
 results = []
 
-for col in core_columns:
-    symbol = "ETHUSDT"
-    date = "2023-08"
 
-    variation_config = copy.deepcopy(config)
-    variation_config['signal']['column'] = col + '_zscore'
+for threshold in [39]:
+    for col in ["num_of_trades_sold"]:
 
-    print("================================")
-    print(f"> Signal is {variation_config['signal']['column']} when threshold over {variation_config['signal']['threshold']}")
-    result = {
-        "symbol": symbol,
-        "date": date,
-        "signal": f"{variation_config['signal']['column']} when threshold over {variation_config['signal']['threshold']}"
-    }
+# for threshold in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160]:
+#     for col in core_columns:
 
-    df = RetriveDataset("ETHUSDT", "2023-08", variation_config).retrieve_trading_dataset()
-    print(df.signal.head())
-    bt = Backtester(df, "ETHUSDT", "2023-08")
-    bt.run()
-    bt.save_trade_list()
+        symbol = "LTCUSDT"
+        date = "2023-08"
 
-    print("================================")
-    print("> DONE")
-    print("> Total Trades: ", len(bt.trade_list))
-    print("> Total TradeScore: ", round(bt.total_trade_score, 4))
-    print("> Positive Trades: ", bt.positive_trades)
-    print("> Negative Trades: ", bt.negative_trades)
-    print("================================")
+        variation_config = copy.deepcopy(config)
+        variation_config['signal']['column'] = col + '_zscore'
+        variation_config['signal']['threshold'] = threshold
 
-    result = {
-        "symbol": symbol,
-        "date": date,
-        "signal": f"{variation_config['signal']['column']} when threshold over {variation_config['signal']['threshold']}",
-        "total_trades": len(bt.trade_list),
-        "total_trade_score": round(bt.total_trade_score, 4),
-        "positive_trades": bt.positive_trades,
-        "negative_trades": bt.negative_trades,
-    }
-    results.append(result)
-    
-    with open("grid_search_results.json", "w") as f:
-        json.dump(results, f, indent=4)
+        print("================================")
+        print(f"> Signal is {variation_config['signal']['column']} when threshold over {variation_config['signal']['threshold']}")
+
+        df = RetriveDataset(symbol, date, variation_config).retrieve_trading_dataset()
+        bt = Backtester(df, symbol, date)
+        bt.run(should_plot=True)
+        bt.save_trade_list()
+
+        print("================================")
+        print("> DONE")
+        print("> Total Trades: ", len(bt.trade_list))
+        print("> Total TradeScore: ", round(bt.total_trade_score, 4))
+        print("> Positive Trades: ", bt.positive_trades)
+        print("> Negative Trades: ", bt.negative_trades)
+        print("================================")
+
+        result = {
+            "symbol": symbol,
+            "date": date,
+            "signal": f"{variation_config['signal']['column']} when threshold over {variation_config['signal']['threshold']}",
+            "total_trades": len(bt.trade_list),
+            "total_trade_score": round(bt.total_trade_score, 4),
+            "positive_trades": bt.positive_trades,
+            "negative_trades": bt.negative_trades,
+        }
+        results.append(result)
+
+        with open("grid_search_results.json", "w") as f:
+            json.dump(results, f, indent=4)

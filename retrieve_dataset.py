@@ -73,7 +73,9 @@ class RetriveDataset():
     def retrieve_trading_dataset(self):
         
         trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath, retrieve_type="trading dataset")
-        trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
+        
+        if "signal" in trading_dataset_df.columns:
+            trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
 
         if trading_dataset_df is None:
             trading_dataset_df = self.build_trading_dataset()

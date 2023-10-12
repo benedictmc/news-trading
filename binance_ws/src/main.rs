@@ -27,6 +27,7 @@ use appinsights::telemetry::{EventTelemetry, Telemetry};
 use lazy_static::lazy_static;
 use appinsights::telemetry::SeverityLevel;
 use opentelemetry::trace::Tracer as _;
+use phf::phf_map;
 
 
 const SYMBOLS: [&str; 213] = [
@@ -244,6 +245,251 @@ const SYMBOLS: [&str; 213] = [
     "GLMRUSDT",
     "BICOUSDT"
 ];
+static SYMBOL_PRECISION: phf::Map<&'static str, u8> = phf_map! {
+    "BTCUSDT" => 3,
+    "ETHUSDT" => 3,
+    "BCHUSDT" => 3,
+    "XRPUSDT" => 1,
+    "EOSUSDT" => 1,
+    "LTCUSDT" => 3,
+    "TRXUSDT" => 0,
+    "ETCUSDT" => 2,
+    "LINKUSDT" => 2,
+    "XLMUSDT" => 0,
+    "ADAUSDT" => 0,
+    "XMRUSDT" => 3,
+    "DASHUSDT" => 3,
+    "ZECUSDT" => 3,
+    "XTZUSDT" => 1,
+    "BNBUSDT" => 2,
+    "ATOMUSDT" => 2,
+    "ONTUSDT" => 1,
+    "IOTAUSDT" => 1,
+    "BATUSDT" => 1,
+    "VETUSDT" => 0,
+    "NEOUSDT" => 2,
+    "QTUMUSDT" => 1,
+    "IOSTUSDT" => 0,
+    "THETAUSDT" => 1,
+    "ALGOUSDT" => 1,
+    "ZILUSDT" => 0,
+    "KNCUSDT" => 0,
+    "ZRXUSDT" => 1,
+    "COMPUSDT" => 3,
+    "OMGUSDT" => 1,
+    "DOGEUSDT" => 0,
+    "SXPUSDT" => 1,
+    "KAVAUSDT" => 1,
+    "BANDUSDT" => 1,
+    "RLCUSDT" => 1,
+    "WAVESUSDT" => 1,
+    "MKRUSDT" => 3,
+    "SNXUSDT" => 1,
+    "DOTUSDT" => 1,
+    "DEFIUSDT" => 3,
+    "YFIUSDT" => 3,
+    "BALUSDT" => 1,
+    "CRVUSDT" => 1,
+    "TRBUSDT" => 1,
+    "RUNEUSDT" => 0,
+    "SUSHIUSDT" => 0,
+    "SRMUSDT" => 0,
+    "EGLDUSDT" => 1,
+    "SOLUSDT" => 0,
+    "ICXUSDT" => 0,
+    "STORJUSDT" => 0,
+    "BLZUSDT" => 0,
+    "UNIUSDT" => 0,
+    "AVAXUSDT" => 0,
+    "FTMUSDT" => 0,
+    "HNTUSDT" => 0,
+    "ENJUSDT" => 0,
+    "FLMUSDT" => 0,
+    "TOMOUSDT" => 0,
+    "RENUSDT" => 0,
+    "KSMUSDT" => 1,
+    "NEARUSDT" => 0,
+    "AAVEUSDT" => 1,
+    "FILUSDT" => 1,
+    "RSRUSDT" => 0,
+    "LRCUSDT" => 0,
+    "MATICUSDT" => 0,
+    "OCEANUSDT" => 0,
+    "CVCUSDT" => 0,
+    "BELUSDT" => 0,
+    "CTKUSDT" => 0,
+    "AXSUSDT" => 0,
+    "ALPHAUSDT" => 0,
+    "ZENUSDT" => 1,
+    "SKLUSDT" => 0,
+    "GRTUSDT" => 0,
+    "1INCHUSDT" => 0,
+    "BTCBUSD" => 3,
+    "CHZUSDT" => 0,
+    "SANDUSDT" => 0,
+    "ANKRUSDT" => 0,
+    "BTSUSDT" => 0,
+    "LITUSDT" => 1,
+    "UNFIUSDT" => 1,
+    "REEFUSDT" => 0,
+    "RVNUSDT" => 0,
+    "SFPUSDT" => 0,
+    "XEMUSDT" => 0,
+    "BTCSTUSDT" => 1,
+    "COTIUSDT" => 0,
+    "CHRUSDT" => 0,
+    "MANAUSDT" => 0,
+    "ALICEUSDT" => 1,
+    "HBARUSDT" => 0,
+    "ONEUSDT" => 0,
+    "LINAUSDT" => 0,
+    "STMXUSDT" => 0,
+    "DENTUSDT" => 0,
+    "CELRUSDT" => 0,
+    "HOTUSDT" => 0,
+    "MTLUSDT" => 0,
+    "OGNUSDT" => 0,
+    "NKNUSDT" => 0,
+    "SCUSDT" => 0,
+    "DGBUSDT" => 0,
+    "1000SHIBUSDT" => 0,
+    "BAKEUSDT" => 0,
+    "GTCUSDT" => 1,
+    "ETHBUSD" => 3,
+    "BTCDOMUSDT" => 3,
+    "BNBBUSD" => 2,
+    "ADABUSD" => 0,
+    "XRPBUSD" => 1,
+    "IOTXUSDT" => 0,
+    "DOGEBUSD" => 0,
+    "AUDIOUSDT" => 0,
+    "RAYUSDT" => 1,
+    "C98USDT" => 0,
+    "MASKUSDT" => 0,
+    "ATAUSDT" => 0,
+    "SOLBUSD" => 0,
+    "FTTBUSD" => 1,
+    "DYDXUSDT" => 1,
+    "1000XECUSDT" => 0,
+    "GALAUSDT" => 0,
+    "CELOUSDT" => 1,
+    "ARUSDT" => 1,
+    "KLAYUSDT" => 1,
+    "ARPAUSDT" => 0,
+    "CTSIUSDT" => 0,
+    "LPTUSDT" => 1,
+    "ENSUSDT" => 1,
+    "PEOPLEUSDT" => 0,
+    "ANTUSDT" => 1,
+    "ROSEUSDT" => 0,
+    "DUSKUSDT" => 0,
+    "FLOWUSDT" => 1,
+    "IMXUSDT" => 0,
+    "API3USDT" => 1,
+    "GMTUSDT" => 0,
+    "APEUSDT" => 0,
+    "WOOUSDT" => 0,
+    "FTTUSDT" => 1,
+    "JASMYUSDT" => 0,
+    "DARUSDT" => 1,
+    "GALUSDT" => 0,
+    "AVAXBUSD" => 1,
+    "NEARBUSD" => 1,
+    "GMTBUSD" => 1,
+    "APEBUSD" => 1,
+    "GALBUSD" => 0,
+    "FTMBUSD" => 0,
+    "DODOBUSD" => 0,
+    "ANCBUSD" => 0,
+    "GALABUSD" => 0,
+    "TRXBUSD" => 0,
+    "1000LUNCBUSD" => 0,
+    "OPUSDT" => 1,
+    "DOTBUSD" => 1,
+    "TLMBUSD" => 0,
+    "WAVESBUSD" => 1,
+    "LINKBUSD" => 1,
+    "SANDBUSD" => 1,
+    "LTCBUSD" => 2,
+    "MATICBUSD" => 0,
+    "CVXBUSD" => 1,
+    "FILBUSD" => 1,
+    "1000SHIBBUSD" => 0,
+    "LEVERBUSD" => 0,
+    "ETCBUSD" => 1,
+    "LDOBUSD" => 1,
+    "UNIBUSD" => 1,
+    "AUCTIONBUSD" => 1,
+    "INJUSDT" => 1,
+    "STGUSDT" => 0,
+    "SPELLUSDT" => 0,
+    "1000LUNCUSDT" => 0,
+    "LUNA2USDT" => 0,
+    "AMBBUSD" => 0,
+    "PHBBUSD" => 0,
+    "LDOUSDT" => 0,
+    "CVXUSDT" => 0,
+    "ICPUSDT" => 0,
+    "APTUSDT" => 1,
+    "QNTUSDT" => 1,
+    "APTBUSD" => 1,
+    "BLUEBIRDUSDT" => 1,
+    "FETUSDT" => 0,
+    "AGIXBUSD" => 0,
+    "FXSUSDT" => 1,
+    "HOOKUSDT" => 1,
+    "MAGICUSDT" => 1,
+    "TUSDT" => 0,
+    "RNDRUSDT" => 1,
+    "HIGHUSDT" => 1,
+    "MINAUSDT" => 0,
+    "ASTRUSDT" => 0,
+    "AGIXUSDT" => 0,
+    "PHBUSDT" => 0,
+    "GMXUSDT" => 2,
+    "CFXUSDT" => 0,
+    "STXUSDT" => 0,
+    "COCOSUSDT" => 1,
+    "BNXUSDT" => 1,
+    "ACHUSDT" => 0,
+    "SSVUSDT" => 2,
+    "CKBUSDT" => 0,
+    "PERPUSDT" => 1,
+    "TRUUSDT" => 0,
+    "LQTYUSDT" => 1,
+    "USDCUSDT" => 0,
+    "IDUSDT" => 0,
+    "ARBUSDT" => 1,
+    "JOEUSDT" => 0,
+    "TLMUSDT" => 0,
+    "AMBUSDT" => 0,
+    "LEVERUSDT" => 0,
+    "RDNTUSDT" => 0,
+    "HFTUSDT" => 0,
+    "XVSUSDT" => 1,
+    "ETHBTC" => 2,
+    "BLURUSDT" => 0,
+    "EDUUSDT" => 0,
+    "IDEXUSDT" => 0,
+    "SUIUSDT" => 1,
+    "1000PEPEUSDT" => 0,
+    "1000FLOKIUSDT" => 0,
+    "UMAUSDT" => 0,
+    "RADUSDT" => 0,
+    "KEYUSDT" => 0,
+    "COMBOUSDT" => 1,
+    "NMRUSDT" => 1,
+    "BTCUSDT" => 3,
+    "MDTUSDT" => 0,
+    "XVGUSDT" => 0,
+    "WLDUSDT" => 0,
+    "PENDLEUSDT" => 0,
+    "ARKMUSDT" => 0,
+    "AGLDUSDT" => 0,
+    "YGGUSDT" => 0,
+    "DODOXUSDT" => 0
+}    
+
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
 
@@ -281,6 +527,7 @@ async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, Tra
 
     println!("Connected with response: {:?}", response);
     let mut stream = ws_stream.split().1;  // Just using the stream part.
+    let mut interval_tick = interval(Duration::from_secs(5000));
 
     loop {
         tokio::select! {
@@ -505,15 +752,25 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         println!("*******");
                         println!("> focus_new_event_log: binance_symbol: {}", binance_symbol);
                         println!("> focus_new_event_log: News event title {}", news_event.news_title);
-                        println!("> GOING TO BUY!!");
+                        println!("> focus_new_event_log: GOING TO TRADE!!");
 
-                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, 2);
-                        let sl_price = round(trade_price * 0.995, 2);
-                        let tp_price = round(trade_price * 1.01, 2);
+                        let precision = match SYMBOL_PRECISION.get(&binance_symbol) {
+                            Some(&value) => value,
+                            None => 2,
+                        };
 
-                        send_futures_order(binance_symbol, "BUY", "LIMIT",  200.0, trade_price, 5, sl_price, tp_price).await;
-                        std::process::exit(1);  // Exits the program with exit code 1
+                        println!("> focus_new_event_log: Precision of {}: {}", &binance_symbol, precision);
 
+                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, precision);
+                        let trade_direction = if trade_price < news_event.start_price { "SELL" } else { "BUY" };
+                        
+                        println!("> focus_new_event_log: trade_direction: {}", &trade_direction);
+
+                        let sl_price = if trade_direction == "SELL" {round(trade_price * 1.02, precision)} else { round(trade_price * 0.98, precision) };
+                        let tp_price = if trade_direction == "SELL" {round(trade_price * 0.95, precision)} else { round(trade_price * 1.05, precision) };
+
+                        send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 5, sl_price, tp_price).await;
+                        std::process::exit(1);  // Exit the program
                     }
 
                    
@@ -619,31 +876,36 @@ async fn send_futures_order(
 
     let opposite_side = if side == "BUY" { "SELL" } else { "BUY" };
 
-    let usdt_amount = round((quantity / price)*leverage as f64, 2);
+    let precision = match SYMBOL_PRECISION.get(&symbol) {
+        Some(&value) => value,
+        None => 2,
+    };
 
-    println!("symbol_amount: {}", usdt_amount);
+    let symbol_amount = round((quantity / price)*leverage as f64, &precision);
+
+    println!("symbol_amount: {}", symbol_amount);
     
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
 
     let params = format!(
         "symbol={}&side={}&type={}&quantity={}&price={}&timeInForce=GTC&timestamp={}",
-        symbol, side, type_, usdt_amount, price, timestamp
+        symbol, side, type_, symbol_amount, price, timestamp
     );
     submit_trade(&params).await;
 
 
     let stop_loss_params = format!(
         "symbol={}&side={}&type=STOP_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
-        symbol, opposite_side, usdt_amount, stop_loss_price, timestamp
+        symbol, opposite_side, symbol_amount, stop_loss_price, timestamp
     );
     submit_trade(&stop_loss_params).await;
 
 
-    let take_profit_params = format!(
-        "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
-        symbol, opposite_side, usdt_amount, take_profit_price, timestamp
-    );
-    submit_trade(&take_profit_params).await;
+    // let take_profit_params = format!(
+    //     "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
+    //     symbol, opposite_side, symbol_amount, take_profit_price, timestamp
+    // );
+    // submit_trade(&take_profit_params).await;
 
     Ok(())
 }

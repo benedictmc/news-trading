@@ -29,8 +29,7 @@ class Backtester():
         self.trade_list = []
 
 
-    def run(self):
-
+    def run(self, should_plot=False):
         while True:
 
             # Get locations of where signal is 1 or -1
@@ -102,10 +101,11 @@ class Backtester():
 
             self.trade_list.append(trade_dict)
 
-            plot_df = self.data.loc[signal_index-pd.Timedelta(minutes=10):signal_index+pd.Timedelta(minutes=60)]
-            plot_title = f"Trade at {signal_index}; Max Positive change: {max_pos_pct_change}; Max Negative change: {max_neg_pct_change}"
+            if should_plot:
+                plot_df = self.data.loc[signal_index-pd.Timedelta(minutes=10):signal_index+pd.Timedelta(minutes=60)]
+                plot_title = f"Trade at {signal_index}; Max Positive change: {max_pos_pct_change}; Max Negative change: {max_neg_pct_change}"
 
-            plot_data(plot_df, self.symbol, 'signal', title=plot_title, signal_index=signal_index)
+                plot_data(plot_df, self.symbol, 'signal', title=plot_title, signal_index=signal_index)
 
             self.trade_number += 1
 
