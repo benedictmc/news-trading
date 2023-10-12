@@ -5,6 +5,7 @@ mod models;
 
 extern crate reqwest;
 extern crate hex;
+extern crate phf;
 
 use models::{BinanceMessage, TradeInfo, TreeOfAlphaTweet, TreeOfAlphaNews, TreeOfAlphaNewsVariation, TradeStats, NewsEvent, Suggestion, BinanceError};
 use std::collections::HashMap;
@@ -20,13 +21,7 @@ use std::env;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use std::time::{SystemTime, UNIX_EPOCH};
 use hmac::{Hmac, Mac, NewMac};
-use reqwest::header;
 use sha2::Sha256;
-use appinsights::{TelemetryConfig, TelemetryClient };
-use appinsights::telemetry::{EventTelemetry, Telemetry};
-use lazy_static::lazy_static;
-use appinsights::telemetry::SeverityLevel;
-use opentelemetry::trace::Tracer as _;
 use phf::phf_map;
 
 
@@ -479,7 +474,6 @@ static SYMBOL_PRECISION: phf::Map<&'static str, u8> = phf_map! {
     "KEYUSDT" => 0,
     "COMBOUSDT" => 1,
     "NMRUSDT" => 1,
-    "BTCUSDT" => 3,
     "MDTUSDT" => 0,
     "XVGUSDT" => 0,
     "WLDUSDT" => 0,
@@ -488,7 +482,7 @@ static SYMBOL_PRECISION: phf::Map<&'static str, u8> = phf_map! {
     "AGLDUSDT" => 0,
     "YGGUSDT" => 0,
     "DODOXUSDT" => 0
-}    
+}; 
 
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
@@ -516,53 +510,62 @@ async fn main() {
 async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>) {
 
     let symbols_string = SYMBOLS.iter()
-    .map(|s| format!("{}@aggTrade", s.to_lowercase()))
-    .collect::<Vec<_>>()
-    .join("/");
+        .map(|s| format!("{}@aggTrade", s.to_lowercase()))
+        .collect::<Vec<_>>()
+        .join("/");
 
     let url_str = format!("wss://stream.binance.com:443/stream?streams={}", symbols_string);
     let url = Url::parse(&url_str).unwrap();
 
-    let (ws_stream, response) = connect_async(url).await.expect("Failed to connect");
+    let (mut ws_stream, response) = connect_async(url).await.expect("Failed to connect");
 
     println!("Connected with response: {:?}", response);
-    let mut stream = ws_stream.split().1;  // Just using the stream part.
-    let mut interval_tick = interval(Duration::from_secs(5000));
+
+    let (mut sink, mut stream) = ws_stream.split();
+
+    let mut interval_tick = interval(Duration::from_secs(60));
 
     loop {
         tokio::select! {
             Some(Ok(message)) = stream.next() => {
-                let start_current_time = get_current_time();
-                if let Message::Text(text) = message {
-
-                    match serde_json::from_str::<BinanceMessage>(&text) {
-                        Ok(parsed_message) => {
-
-                            let symbol = parsed_message.data.s;
-                            let mut trade_info_lock = symbol_trade_infos.lock().await;
-
-                            if let Some(trade_info) = trade_info_lock.get_mut(&symbol) {
-                                trade_info.count += 1;
-                                if let (Ok(price), Ok(qty)) = (parsed_message.data.p.parse::<f64>(), parsed_message.data.q.parse::<f64>()) {
-
-                                    trade_info.total_price += price;
-                                    let volume = price * qty;
-                                    if parsed_message.data.m {
-                                        trade_info.volume_sold += volume;
-                                        trade_info.amount_of_sells += 1;
-                                    } else {
-                                        trade_info.volume_bought += volume;
-                                        trade_info.amount_of_buys += 1;
+                match message {
+                    Message::Ping(ping_data) => {
+                        if let Err(e) = sink.send(Message::Pong(ping_data)).await {
+                            eprintln!("Failed to send pong: {}", e);
+                            // Optionally, reconnect logic here
+                        }
+                    },
+                    Message::Text(text) => {
+                        // Handle text messages as before
+                        match serde_json::from_str::<BinanceMessage>(&text) {
+                            Ok(parsed_message) => {
+                                let symbol = parsed_message.data.s;
+                                let mut trade_info_lock = symbol_trade_infos.lock().await;
+        
+                                if let Some(trade_info) = trade_info_lock.get_mut(&symbol) {
+                                    trade_info.count += 1;
+                                    if let (Ok(price), Ok(qty)) = (parsed_message.data.p.parse::<f64>(), parsed_message.data.q.parse::<f64>()) {
+        
+                                        trade_info.total_price += price;
+                                        let volume = price * qty;
+                                        if parsed_message.data.m {
+                                            trade_info.volume_sold += volume;
+                                            trade_info.amount_of_sells += 1;
+                                        } else {
+                                            trade_info.volume_bought += volume;
+                                            trade_info.amount_of_buys += 1;
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        Err(_) => println!("> binancews: Failed to deserialize message"),
-                    }
+                            },
+                            Err(e) => eprintln!("Failed to deserialize message: {}, text: {}", e, text),
+                        }
+                    },
+                    // ... other message types ...
+                    _ => eprintln!("Received unexpected message: {:?}", message),
                 }
-                // let end_current_time = get_current_time();
-                // println!("> binancews: Updated averages in {}ns", end_current_time - start_current_time); // Average is 15000ns
             }
+            // ... other branches ...
         }
     }
 }
@@ -753,11 +756,11 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         println!("> focus_new_event_log: binance_symbol: {}", binance_symbol);
                         println!("> focus_new_event_log: News event title {}", news_event.news_title);
                         println!("> focus_new_event_log: GOING TO TRADE!!");
+                        println!("> focus_new_event_log: Time is {}", get_current_time());
 
-                        let precision = match SYMBOL_PRECISION.get(&binance_symbol) {
-                            Some(&value) => value,
-                            None => 2,
-                        };
+                        // Should be the asset precision
+                        // Needs another map
+                        let precision = 4 as u32;
 
                         println!("> focus_new_event_log: Precision of {}: {}", &binance_symbol, precision);
 
@@ -765,9 +768,13 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         let trade_direction = if trade_price < news_event.start_price { "SELL" } else { "BUY" };
                         
                         println!("> focus_new_event_log: trade_direction: {}", &trade_direction);
+                        println!("> focus_new_event_log: trade_price: {}", &trade_price);
 
                         let sl_price = if trade_direction == "SELL" {round(trade_price * 1.02, precision)} else { round(trade_price * 0.98, precision) };
                         let tp_price = if trade_direction == "SELL" {round(trade_price * 0.95, precision)} else { round(trade_price * 1.05, precision) };
+
+                        println!("> focus_new_event_log: sl_price: {}", &sl_price);
+                        println!("> focus_new_event_log: tp_price: {}", &tp_price);
 
                         send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 5, sl_price, tp_price).await;
                         std::process::exit(1);  // Exit the program
@@ -879,9 +886,9 @@ async fn send_futures_order(
     let precision = match SYMBOL_PRECISION.get(&symbol) {
         Some(&value) => value,
         None => 2,
-    };
+    } as u32;
 
-    let symbol_amount = round((quantity / price)*leverage as f64, &precision);
+    let symbol_amount = round((quantity / price)*leverage as f64, precision);
 
     println!("symbol_amount: {}", symbol_amount);
     

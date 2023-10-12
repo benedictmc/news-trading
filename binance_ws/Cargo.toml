@@ -22,4 +22,4 @@ lazy_static = "1.4"
 opentelemetry = { version = "0.20" }
 opentelemetry-stdout = { version = "0.1" }
 opentelemetry-application-insights = "0.27.0"
-phf = "0.10"
+phf = { version = "0.10", features = ["macros"] }
