@@ -483,6 +483,250 @@ static SYMBOL_PRECISION: phf::Map<&'static str, u8> = phf_map! {
     "YGGUSDT" => 0,
     "DODOXUSDT" => 0
 }; 
+static SYMBOL_PRICE_PRECISION: phf::Map<&'static str, u8> = phf_map! {
+    "BTCUSDT" => 2,
+    "ETHUSDT" => 2,
+    "BCHUSDT" => 2,
+    "XRPUSDT" => 4,
+    "EOSUSDT" => 3,
+    "LTCUSDT" => 2,
+    "TRXUSDT" => 5,
+    "ETCUSDT" => 3,
+    "LINKUSDT" => 3,
+    "XLMUSDT" => 5,
+    "ADAUSDT" => 5,
+    "XMRUSDT" => 2,
+    "DASHUSDT" => 2,
+    "ZECUSDT" => 2,
+    "XTZUSDT" => 3,
+    "BNBUSDT" => 3,
+    "ATOMUSDT" => 3,
+    "ONTUSDT" => 4,
+    "IOTAUSDT" => 4,
+    "BATUSDT" => 4,
+    "VETUSDT" => 6,
+    "NEOUSDT" => 3,
+    "QTUMUSDT" => 3,
+    "IOSTUSDT" => 6,
+    "THETAUSDT" => 4,
+    "ALGOUSDT" => 4,
+    "ZILUSDT" => 5,
+    "KNCUSDT" => 5,
+    "ZRXUSDT" => 4,
+    "COMPUSDT" => 2,
+    "OMGUSDT" => 4,
+    "DOGEUSDT" => 6,
+    "SXPUSDT" => 4,
+    "KAVAUSDT" => 4,
+    "BANDUSDT" => 4,
+    "RLCUSDT" => 4,
+    "WAVESUSDT" => 4,
+    "MKRUSDT" => 2,
+    "SNXUSDT" => 3,
+    "DOTUSDT" => 3,
+    "DEFIUSDT" => 1,
+    "YFIUSDT" => 1,
+    "BALUSDT" => 3,
+    "CRVUSDT" => 3,
+    "TRBUSDT" => 3,
+    "RUNEUSDT" => 4,
+    "SUSHIUSDT" => 4,
+    "SRMUSDT" => 4,
+    "EGLDUSDT" => 3,
+    "SOLUSDT" => 4,
+    "ICXUSDT" => 4,
+    "STORJUSDT" => 4,
+    "BLZUSDT" => 5,
+    "UNIUSDT" => 4,
+    "AVAXUSDT" => 4,
+    "FTMUSDT" => 6,
+    "HNTUSDT" => 4,
+    "ENJUSDT" => 5,
+    "FLMUSDT" => 4,
+    "TOMOUSDT" => 4,
+    "RENUSDT" => 5,
+    "KSMUSDT" => 3,
+    "NEARUSDT" => 4,
+    "AAVEUSDT" => 3,
+    "FILUSDT" => 3,
+    "RSRUSDT" => 6,
+    "LRCUSDT" => 5,
+    "MATICUSDT" => 5,
+    "OCEANUSDT" => 5,
+    "CVCUSDT" => 5,
+    "BELUSDT" => 5,
+    "CTKUSDT" => 5,
+    "AXSUSDT" => 5,
+    "ALPHAUSDT" => 5,
+    "ZENUSDT" => 3,
+    "SKLUSDT" => 5,
+    "GRTUSDT" => 5,
+    "1INCHUSDT" => 4,
+    "BTCBUSD" => 1,
+    "CHZUSDT" => 5,
+    "SANDUSDT" => 5,
+    "ANKRUSDT" => 6,
+    "BTSUSDT" => 5,
+    "LITUSDT" => 3,
+    "UNFIUSDT" => 3,
+    "REEFUSDT" => 6,
+    "RVNUSDT" => 5,
+    "SFPUSDT" => 4,
+    "XEMUSDT" => 4,
+    "BTCSTUSDT" => 3,
+    "COTIUSDT" => 5,
+    "CHRUSDT" => 4,
+    "MANAUSDT" => 4,
+    "ALICEUSDT" => 3,
+    "HBARUSDT" => 5,
+    "ONEUSDT" => 5,
+    "LINAUSDT" => 5,
+    "STMXUSDT" => 5,
+    "DENTUSDT" => 6,
+    "CELRUSDT" => 5,
+    "HOTUSDT" => 6,
+    "MTLUSDT" => 4,
+    "OGNUSDT" => 4,
+    "NKNUSDT" => 5,
+    "SCUSDT" => 6,
+    "DGBUSDT" => 5,
+    "1000SHIBUSDT" => 6,
+    "BAKEUSDT" => 4,
+    "GTCUSDT" => 3,
+    "ETHBUSD" => 2,
+    "BTCDOMUSDT" => 1,
+    "BNBBUSD" => 3,
+    "ADABUSD" => 5,
+    "XRPBUSD" => 4,
+    "IOTXUSDT" => 5,
+    "DOGEBUSD" => 6,
+    "AUDIOUSDT" => 4,
+    "RAYUSDT" => 3,
+    "C98USDT" => 4,
+    "MASKUSDT" => 4,
+    "ATAUSDT" => 4,
+    "SOLBUSD" => 4,
+    "FTTBUSD" => 3,
+    "DYDXUSDT" => 3,
+    "1000XECUSDT" => 5,
+    "GALAUSDT" => 5,
+    "CELOUSDT" => 3,
+    "ARUSDT" => 3,
+    "KLAYUSDT" => 4,
+    "ARPAUSDT" => 5,
+    "CTSIUSDT" => 4,
+    "LPTUSDT" => 3,
+    "ENSUSDT" => 3,
+    "PEOPLEUSDT" => 5,
+    "ANTUSDT" => 3,
+    "ROSEUSDT" => 5,
+    "DUSKUSDT" => 5,
+    "FLOWUSDT" => 3,
+    "IMXUSDT" => 4,
+    "API3USDT" => 4,
+    "GMTUSDT" => 5,
+    "APEUSDT" => 4,
+    "WOOUSDT" => 5,
+    "FTTUSDT" => 4,
+    "JASMYUSDT" => 6,
+    "DARUSDT" => 4,
+    "GALUSDT" => 5,
+    "AVAXBUSD" => 6,
+    "NEARBUSD" => 7,
+    "GMTBUSD" => 7,
+    "APEBUSD" => 7,
+    "GALBUSD" => 7,
+    "FTMBUSD" => 7,
+    "DODOBUSD" => 7,
+    "ANCBUSD" => 7,
+    "GALABUSD" => 7,
+    "TRXBUSD" => 7,
+    "1000LUNCBUSD" => 7,
+    "OPUSDT" => 7,
+    "DOTBUSD" => 7,
+    "TLMBUSD" => 7,
+    "WAVESBUSD" => 7,
+    "LINKBUSD" => 7,
+    "SANDBUSD" => 7,
+    "LTCBUSD" => 6,
+    "MATICBUSD" => 7,
+    "CVXBUSD" => 7,
+    "FILBUSD" => 7,
+    "1000SHIBBUSD" => 7,
+    "LEVERBUSD" => 7,
+    "ETCBUSD" => 6,
+    "LDOBUSD" => 6,
+    "UNIBUSD" => 6,
+    "AUCTIONBUSD" => 7,
+    "INJUSDT" => 6,
+    "STGUSDT" => 7,
+    "SPELLUSDT" => 7,
+    "1000LUNCUSDT" => 7,
+    "LUNA2USDT" => 7,
+    "AMBBUSD" => 7,
+    "PHBBUSD" => 7,
+    "LDOUSDT" => 6,
+    "CVXUSDT" => 6,
+    "ICPUSDT" => 6,
+    "APTUSDT" => 5,
+    "QNTUSDT" => 6,
+    "APTBUSD" => 5,
+    "BLUEBIRDUSDT" => 5,
+    "FETUSDT" => 7,
+    "AGIXBUSD" => 7,
+    "FXSUSDT" => 6,
+    "HOOKUSDT" => 6,
+    "MAGICUSDT" => 6,
+    "TUSDT" => 7,
+    "RNDRUSDT" => 6,
+    "HIGHUSDT" => 6,
+    "MINAUSDT" => 7,
+    "ASTRUSDT" => 7,
+    "AGIXUSDT" => 7,
+    "PHBUSDT" => 7,
+    "GMXUSDT" => 6,
+    "CFXUSDT" => 7,
+    "STXUSDT" => 7,
+    "COCOSUSDT" => 6,
+    "BNXUSDT" => 6,
+    "ACHUSDT" => 7,
+    "SSVUSDT" => 6,
+    "CKBUSDT" => 7,
+    "PERPUSDT" => 6,
+    "TRUUSDT" => 7,
+    "LQTYUSDT" => 6,
+    "USDCUSDT" => 7,
+    "IDUSDT" => 7,
+    "ARBUSDT" => 6,
+    "JOEUSDT" => 7,
+    "TLMUSDT" => 7,
+    "AMBUSDT" => 7,
+    "LEVERUSDT" => 7,
+    "RDNTUSDT" => 7,
+    "HFTUSDT" => 7,
+    "XVSUSDT" => 6,
+    "ETHBTC" => 6,
+    "BLURUSDT" => 7,
+    "EDUUSDT" => 7,
+    "IDEXUSDT" => 7,
+    "SUIUSDT" => 6,
+    "1000PEPEUSDT" => 7,
+    "1000FLOKIUSDT" => 7,
+    "UMAUSDT" => 6,
+    "RADUSDT" => 6,
+    "KEYUSDT" => 7,
+    "COMBOUSDT" => 6,
+    "NMRUSDT" => 6,
+    "BTCUSDT_230929" => 1,
+    "MDTUSDT" => 7,
+    "XVGUSDT" => 7,
+    "WLDUSDT" => 7,
+    "PENDLEUSDT" => 7,
+    "ARKMUSDT" => 7,
+    "AGLDUSDT" => 7,
+    "YGGUSDT" => 7,
+    "DODOXUSDT" => 7
+};
 
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
@@ -492,7 +736,7 @@ const TOA_PING_INTERVAL: u64 = 20;
 async fn main() {
     // Run both WebSocket tasks concurrently
     println!("> Starting WebSocket tasks...");
-
+    
     let symbol_trade_infos = Arc::new(Mutex::new(HashMap::new()));
     let symbol_trade_stats = Arc::new(Mutex::new(HashMap::new()));
     let news_event_log = Arc::new(Mutex::new(HashMap::new()));
@@ -561,11 +805,9 @@ async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, Tra
                             Err(e) => eprintln!("Failed to deserialize message: {}, text: {}", e, text),
                         }
                     },
-                    // ... other message types ...
                     _ => eprintln!("Received unexpected message: {:?}", message),
                 }
             }
-            // ... other branches ...
         }
     }
 }
@@ -656,8 +898,6 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
 
     loop {
         interval.tick().await;
-        let start_current_time = get_current_time();
-
         let mut symbol_trade_infos_lock = symbol_trade_infos.lock().await;
 
         for (symbol, trade_info) in symbol_trade_infos_lock.iter_mut() {
@@ -671,12 +911,7 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
                 trade_stats.volume_bought.update(trade_info.volume_bought);
             }
         }
-
         symbol_trade_infos_lock.values_mut().for_each(|info| *info = TradeInfo::default());
-
-        let end_current_time = get_current_time();
-        // println!("*******");
-        // println!("> calculate_averages: Updated averages in {}ns", end_current_time - start_current_time); // Average is 8000ns
     }
 }
 
@@ -691,8 +926,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
         if news_event_log_lock.is_empty() {
             continue;
         }
-
-        let start_current_time = get_current_time();
 
         let mut events_to_remove = Vec::new();
 
@@ -758,20 +991,21 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         println!("> focus_new_event_log: GOING TO TRADE!!");
                         println!("> focus_new_event_log: Time is {}", get_current_time());
 
-                        // Should be the asset precision
-                        // Needs another map
-                        let precision = 4 as u32;
+                        let price_precision = match SYMBOL_PRICE_PRECISION.get(&binance_symbol) {
+                            Some(&value) => value,
+                            None => 4,
+                        } as u32;
+                    
+                        println!("> focus_new_event_log: Precision of {}: {}", &binance_symbol, price_precision);
 
-                        println!("> focus_new_event_log: Precision of {}: {}", &binance_symbol, precision);
-
-                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, precision);
+                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, price_precision);
                         let trade_direction = if trade_price < news_event.start_price { "SELL" } else { "BUY" };
                         
                         println!("> focus_new_event_log: trade_direction: {}", &trade_direction);
                         println!("> focus_new_event_log: trade_price: {}", &trade_price);
 
-                        let sl_price = if trade_direction == "SELL" {round(trade_price * 1.02, precision)} else { round(trade_price * 0.98, precision) };
-                        let tp_price = if trade_direction == "SELL" {round(trade_price * 0.95, precision)} else { round(trade_price * 1.05, precision) };
+                        let sl_price = if trade_direction == "SELL" {round(trade_price * 1.02, price_precision)} else { round(trade_price * 0.98, price_precision) };
+                        let tp_price = if trade_direction == "SELL" {round(trade_price * 0.95, price_precision)} else { round(trade_price * 1.05, price_precision) };
 
                         println!("> focus_new_event_log: sl_price: {}", &sl_price);
                         println!("> focus_new_event_log: tp_price: {}", &tp_price);
@@ -779,10 +1013,6 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 5, sl_price, tp_price).await;
                         std::process::exit(1);  // Exit the program
                     }
-
-                   
-
-                    
                 }
             }
         }
@@ -795,7 +1025,7 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
 
             if let Some(news_event) = news_event_log_lock.get_mut(&key){
                 println!("> focus_new_event_log: Saving news event to file");
-                save_news_event_to_file(news_event).await;
+                // save_news_event_to_file(news_event).await;
             }
             news_event_log_lock.remove(&key);
         }
@@ -888,9 +1118,12 @@ async fn send_futures_order(
         None => 2,
     } as u32;
 
+    println!("> send_futures_order: Current Time: {}", get_current_time());
+    println!("> send_futures_order: Percision: {}", precision);
+
     let symbol_amount = round((quantity / price)*leverage as f64, precision);
 
-    println!("symbol_amount: {}", symbol_amount);
+    println!("> send_futures_order: symbol_amount: {}", symbol_amount);
     
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
 
@@ -959,7 +1192,7 @@ async fn submit_trade(params: &str) -> Result<(), reqwest::Error>{
    
     let signature = get_signature(&api_secret, &params);
 
-    println!("signature: {}", signature);
+    println!("> submit_trade: signature: {}", signature);
 
     let mut headers = HeaderMap::new();
     headers.insert("X-MBX-APIKEY", HeaderValue::from_str(&api_key).unwrap());
@@ -971,11 +1204,11 @@ async fn submit_trade(params: &str) -> Result<(), reqwest::Error>{
     let response = client.post(&url).headers(headers).send().await?;
     
     if response.status().is_success() {
-        println!("Order placed successfully");
+        println!("> submit_trade: Order placed successfully");
     } else {
         // The request failed, print the error message
         let error_text = response.text().await?;
-        println!("Error: {}", error_text);
+        println!("> submit_trade: Error: {}", error_text);
     }
 
     Ok(())
