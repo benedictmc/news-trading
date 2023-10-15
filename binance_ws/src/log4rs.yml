@@ -1,0 +1,9 @@
+appenders:
+  file:
+    kind: file
+    path: logs/trading_log.log
+
+root:
+  level: info
+  appenders:
+    - file

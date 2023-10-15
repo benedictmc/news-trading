@@ -13,7 +13,7 @@ serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0"
 futures = "0.3.28"
 serde_derive = "1.0"
-reqwest = { version = "0.11.22", features = ["json", "blocking"] }
+reqwest = { version = "0.11.22", features = ["default-tls", "json", "blocking"] }
 hmac = "0.11.0"
 sha2 = "0.9"
 hex = "0.4"
@@ -23,3 +23,5 @@ opentelemetry = { version = "0.20" }
 opentelemetry-stdout = { version = "0.1" }
 opentelemetry-application-insights = "0.27.0"
 phf = { version = "0.10", features = ["macros"] }
+log = "0.4"
+log4rs = "1.0"

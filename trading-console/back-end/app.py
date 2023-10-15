@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from endpoints.routes import endpoints
 from tinydb import TinyDB
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -16,9 +17,9 @@ app.register_blueprint(endpoints)
 
 # Apply configurations
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-
+app.config['LOG_FILE_PATH'] = "/home/ben/dev/news-trading/binance_ws/logs/trading_log.log"
 # Enable CORS for the React frontend
 CORS(app)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# if __name__ == '__main__':
+#     app.run(debug=True)
