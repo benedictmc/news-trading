@@ -1,9 +1,24 @@
 from flask import render_template, jsonify, Blueprint, request, current_app as app
 from tinydb import Query
 from datetime import datetime
-import json
+from flask_login import login_user, logout_user, current_user, login_required, login_manager
+from security import User
 
 endpoints = Blueprint('endpoints', __name__)
+
+
+@endpoints.route('/login', methods=['POST'])
+def login():
+    username = request.form.get('username')
+    password = request.form.get('password')
+
+    if username == app.config["MASTER_USERNAME"] and password == app.config["MASTER_PASSWORD"]:
+        user = User("admin")
+        login_user(user)
+        return jsonify(success=True)
+
+    return jsonify(success=False), 401
+
 
 @endpoints.route('/')
 def index():
@@ -77,3 +92,12 @@ def get_news_events():
             news_events.append(news_event)
 
     return jsonify(news_events)
+
+
+
+@endpoints.route('/test-endpoint', methods=['GET'])
+@login_required
+def test():
+    return jsonify({"last_ping": "timestamp"})
+
+
