@@ -30,6 +30,7 @@ use phf::Map;
 use std::time::Instant;
 use log::{error, warn, info, debug};
 use std::cmp::max;
+use std::collections::HashSet;
 
 const BINANCE_TICK_INTERVAL: u64 = 1;
 const TOA_PING_INTERVAL: u64 = 20;
@@ -226,6 +227,7 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
 
 async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>, symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>, symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>) {
     let mut interval = tokio::time::interval(Duration::from_millis(500));
+    let mut locked_symbols: HashMap<String, u128> = HashMap::new();
 
     loop {
         interval.tick().await;
@@ -281,6 +283,18 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                     news_event.total_z_score = f64::max(news_event.total_z_score, total_zscore.clone());
 
                     if total_zscore > 100.0{
+                        
+
+                        match locked_symbols.get(binance_symbol) {
+                            Some(&timestamp) => {
+                                if current_time > timestamp {
+                                    locked_symbols.remove(binance_symbol);
+                                } else {
+                                    continue;
+                                }
+                            },
+                            None => {}
+                        }
 
                         println!("*******");
                         println!("> focus_new_event_log: binance_symbol: {}", binance_symbol);
@@ -308,7 +322,9 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         println!("> focus_new_event_log: tp_price: {}", &tp_price);
 
                         send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 5, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await;
-                        std::process::exit(1);  // Exit the program
+                        let timestamp = get_current_time() + 1800000000000; // Plus 30 minutes
+                        
+                        locked_symbols.insert(binance_symbol.clone(), timestamp);
                     }
                 }
             }

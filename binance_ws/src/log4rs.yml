@@ -1,7 +1,7 @@
 appenders:
   file:
     kind: file
-    path: logs/trading_log.log
+    path: /home/ben/dev/news-trading/binance_ws/logs/trading_log.log
 
 root:
   level: info
