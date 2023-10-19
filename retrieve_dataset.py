@@ -74,11 +74,11 @@ class RetriveDataset():
         
         trading_dataset_df = self.__retrieve_from_blob(self.trading_dataset_filepath, retrieve_type="trading dataset")
         
-        if "signal" in trading_dataset_df.columns:
-            trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
-
         if trading_dataset_df is None:
-            trading_dataset_df = self.build_trading_dataset()
+            trading_dataset_df = self.retrieve_reduced_trades()
+
+        if "signal" in trading_dataset_df.columns:      
+            trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
 
         if len(set(self.config["columns"]) - set(trading_dataset_df.columns)) > 0:
             print("> Columns missing from trading dataset")
@@ -114,6 +114,7 @@ class RetriveDataset():
 
         return trading_dataset_df
     
+
 
     def retrieve_reduced_trades(self):
         print("> Retrieving reduced trades...")
