@@ -447,10 +447,17 @@ async fn send_futures_order(
     
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
 
+    // Limit order
+    // let params = format!(
+    //     "symbol={}&side={}&type={}&quantity={}&price={}&timeInForce=GTC&timestamp={}",
+    //     symbol, side, type_, symbol_amount, price, timestamp
+    // );
+
     let params = format!(
-        "symbol={}&side={}&type={}&quantity={}&price={}&timeInForce=GTC&timestamp={}",
-        symbol, side, type_, symbol_amount, price, timestamp
+        "symbol={}&side={}&type=MARKET&quantity={}&timestamp={}",
+        symbol, side, symbol_amount, timestamp
     );
+
     submit_trade(&params).await;
 
 
