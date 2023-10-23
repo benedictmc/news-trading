@@ -321,7 +321,7 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
                         println!("> focus_new_event_log: sl_price: {}", &sl_price);
                         println!("> focus_new_event_log: tp_price: {}", &tp_price);
 
-                        send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 5, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await;
+                        send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 10, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await;
                         let timestamp = get_current_time() + 1800000000000; // Plus 30 minutes
                         
                         locked_symbols.insert(binance_symbol.clone(), timestamp);
