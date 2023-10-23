@@ -75,6 +75,10 @@ class RetriveDataset():
         
         if trading_dataset_df is None:
             trading_dataset_df = self.retrieve_reduced_trades()
+            # Happens when could not build
+            if trading_dataset_df is None:
+                print("> Could not retrieve reduced trades")
+                return None
 
         if "signal" in trading_dataset_df.columns:      
             trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
@@ -86,25 +90,25 @@ class RetriveDataset():
         needed_columns = self.config["columns"]
         
         added_column = False
-
-        for feature in self.config["features"]:
-            feature_type = feature['type']
-
-            for column in feature["columns"]:
-                needed_columns.append(f"{column}_{feature_type}")
-                # Build new column if doesn't exist 
-                if f"{column}_{feature_type}" not in trading_dataset_df.columns:
-                    if feature_type == "zscore":
-                        trading_dataset_df = self.add_zscore(column, trading_dataset_df)
-                        added_column = True
         
-        if added_column:
-            self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
+        if "features" in self.config:
+            for feature in self.config["features"]:
+                feature_type = feature['type']
+
+                for column in feature["columns"]:
+                    needed_columns.append(f"{column}_{feature_type}")
+                    # Build new column if doesn't exist 
+                    if f"{column}_{feature_type}" not in trading_dataset_df.columns:
+                        if feature_type == "zscore":
+                            trading_dataset_df = self.add_zscore(column, trading_dataset_df)
+                            added_column = True
+            
+            if added_column:
+                self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 
         if "signal" in self.config:
             trading_dataset_df = self.add_signal(trading_dataset_df, self.config["signal"])
             needed_columns.append("signal")
-
 
         trading_dataset_df = trading_dataset_df[needed_columns]
         
@@ -121,7 +125,8 @@ class RetriveDataset():
         if reduced_trades_df is None:
             print("> Could not retrieve reduced trades from blob")
             reduced_trades_df = self.__build_reduced_trades()
-            self.__save_to_blob(reduced_trades_df, self.reduced_trades_filepath)
+            if not reduced_trades_df is None:
+                self.__save_to_blob(reduced_trades_df, self.reduced_trades_filepath)
 
         else:
             print(f"> Retrieved reduced trades from blob for {self.symbol}-{self.date}")

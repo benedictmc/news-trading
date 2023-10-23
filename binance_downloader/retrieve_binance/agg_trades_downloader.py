@@ -1,4 +1,5 @@
 import os
+import traceback
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 import dotenv
 import requests
@@ -58,6 +59,9 @@ def download_binance_data(symbol, data_type, interval, date, save_path="local"):
 
         # Define file path
         file_path = os.path.join(save_path, f"{symbol}-{data_type}-{date}.zip")
+
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
         
         # Save the response content as a binary file
         with open(file_path, 'wb') as file:
@@ -79,6 +83,7 @@ def download_binance_data(symbol, data_type, interval, date, save_path="local"):
 
     except Exception as e:
         print(e)
+        print(traceback.format_exc())
 
     finally:
         return success
