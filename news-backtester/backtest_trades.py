@@ -122,52 +122,6 @@ class Backtester():
         return
 
 
-    # def plot_trade(self, trade_index, entry_price, position_type, trade_dict):
-    #     try:
-    #         pre_trade_index = trade_index - pd.Timedelta(minutes=30)
-    #         post_trade_index = trade_index + pd.Timedelta(minutes=30)
-
-    #         # Plot avg_price over the time of the trade
-    #         trade_data = self.data.loc[pre_trade_index:post_trade_index]
-
-    #         max_pos_pct_change_time = pd.to_datetime(trade_dict["max_pos_pct_change_time"], format='%Y-%m-%d %H:%M:%S')
-    #         max_neg_pct_change_time = pd.to_datetime(trade_dict["max_neg_pct_change_time"], format='%Y-%m-%d %H:%M:%S')
-
-    #         # Plot avg_price over the time of the trade
-    #         plt.figure(figsize=(10,6))
-           
-    #         plt.plot(trade_data.index, trade_data['avg_price'], label='avg_price', color='blue')
-
-    #         # Add red triangle marker at the index of the signal
-    #         plt.scatter(trade_index, trade_data.loc[trade_index, 'avg_price'], color='red', marker='^', s=100, label='Signal')
-
-    #         plt.scatter(max_pos_pct_change_time, trade_data.loc[max_pos_pct_change_time, 'avg_price'], color='blue', marker='^', s=100, label='Largest Positive Change')
-
-    #         plt.scatter(max_neg_pct_change_time, trade_data.loc[max_neg_pct_change_time, 'avg_price'], color='pink', marker='^', s=100, label='Largest Negative Change')
-
-    #         # Plot news signals
-    #         signal_data = trade_data[trade_data['news_signal'] == 1]
-
-    #         if not signal_data.empty:
-    #             plt.scatter(signal_data.index, signal_data['avg_price'], color='orange', marker='o', s=20, label='News Signal')
-
-    #         plt.axhline(y=entry_price, color='g', linestyle='--', label='Entry price')
-    #         plt.title(f'{position_type} Trade at {trade_index}')
-    #         plt.xlabel('Time')
-    #         plt.ylabel('Average Price')
-    #         plt.legend()
-    #         plt.grid(True)
-    #         results_folder = f'local/results/{self.symbol}/{self.date}/'
-
-    #         if not os.path.exists(results_folder):
-    #             os.makedirs(results_folder)
-    #         print(f"> Saving plot to {results_folder}trade_{self.trade_number}.png")
-
-    #         plt.savefig(f'{results_folder}trade_{self.trade_number}.png')
-    #     except:
-    #         print(trade_data.head())
-
-
     def save_trade_list(self):
         if self.trade_list == []:
             print("> No trades found")

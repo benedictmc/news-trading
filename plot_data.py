@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
-from retrieve_dataset import RetriveDataset
 
 def plot_data(df, symbol, signal_to_plot=None, title=None, plot_folder=None, signal_index=None):
 

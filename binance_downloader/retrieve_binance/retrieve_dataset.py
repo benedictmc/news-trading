@@ -84,7 +84,7 @@ class RetriveDataset():
             trading_dataset_df = trading_dataset_df.drop(columns=['signal'])
 
         if len(set(self.config["columns"]) - set(trading_dataset_df.columns)) > 0:
-            print("> Columns missing from trading dataset")
+            print(f"> Columns {set(self.config['columns']) - set(trading_dataset_df.columns)} missing from trading dataset")
             raise Exception("Columns missing from trading dataset")
         
         needed_columns = self.config["columns"]
@@ -95,14 +95,22 @@ class RetriveDataset():
             for feature in self.config["features"]:
                 feature_type = feature['type']
 
-                for column in feature["columns"]:
-                    needed_columns.append(f"{column}_{feature_type}")
-                    # Build new column if doesn't exist 
-                    if f"{column}_{feature_type}" not in trading_dataset_df.columns:
-                        if feature_type == "zscore":
+                # Add feature types here:
+                if feature_type == "zscore":
+                    for column in feature["columns"]:
+                        needed_columns.append(f"{column}_{feature_type}")
+                        # Build new column if doesn't exist 
+                        if f"{column}_{feature_type}" not in trading_dataset_df.columns:
                             trading_dataset_df = self.add_zscore(column, trading_dataset_df)
                             added_column = True
-            
+                
+                if feature_type == "news_signal":
+                    needed_columns.append("news_signal")
+
+                    if feature_type not in trading_dataset_df.columns:
+                        trading_dataset_df = self.add_news_signals(trading_dataset_df)
+                        added_column = True
+
             if added_column:
                 self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 

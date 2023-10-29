@@ -49,6 +49,7 @@ async fn main(){
     let news_event_log = Arc::new(Mutex::new(HashMap::new()));
 
     for (symbol, _) in SYMBOLS_INFO.entries() {
+
         symbol_trade_infos.lock().await.insert(symbol.to_string(), TradeInfo::default());
         symbol_trade_stats.lock().await.insert(symbol.to_string(), TradeStats::default());
     }
@@ -309,19 +310,23 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
 
                         println!("> focus_new_event_log: Precision of {}: {}", &binance_symbol, price_precision);
 
-                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, price_precision);
+                        let trade_price = round( latest_trade_info.total_price / latest_trade_info.count as f64, price_precision);
+                        
                         let trade_direction = if trade_price < news_event.start_price { "SELL" } else { "BUY" };
                         
                         println!("> focus_new_event_log: trade_direction: {}", &trade_direction);
                         println!("> focus_new_event_log: trade_price: {}", &trade_price);
 
                         let sl_price = if trade_direction == "SELL" {round(trade_price * 1.02, price_precision)} else { round(trade_price * 0.98, price_precision) };
-                        let tp_price = if trade_direction == "SELL" {round(trade_price * 0.95, price_precision)} else { round(trade_price * 1.05, price_precision) };
+                        let tp_price = if trade_direction == "SELL" {round(trade_price * 0.93, price_precision)} else { round(trade_price * 1.07, price_precision) };
 
                         println!("> focus_new_event_log: sl_price: {}", &sl_price);
                         println!("> focus_new_event_log: tp_price: {}", &tp_price);
+                        
 
-                        send_futures_order(binance_symbol, trade_direction, "LIMIT",  200.0, trade_price, 10, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await;
+                        let buy_price = round(trade_price * 1.0025, price_precision);
+
+                        send_futures_order(binance_symbol, trade_direction, "LIMIT",  350.0, buy_price, 10, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await;
                         let timestamp = get_current_time() + 1800000000000; // Plus 30 minutes
                         
                         locked_symbols.insert(binance_symbol.clone(), timestamp);
@@ -354,14 +359,14 @@ async fn process_suggestions(suggestions: &[Suggestion], news_event_log: &Arc<Mu
                     let mut lock = news_event_log.lock().await;
                     if let Some(news_event) = lock.get_mut(&binance_symbol) {
                         news_event.news_occurance += 1;
-                        news_event.time_to_end = get_current_time() + 60000000000 // Plus 1 minutes;
+                        news_event.time_to_end = get_current_time() + 45000000000 // Plus 45 seconds
                     } else {
                         let news_event = NewsEvent {
                             binance_symbol: binance_symbol.clone(),
                             time_started: get_current_time(),
                             news_occurance: 1,
                             news_title: title.to_string(),
-                            time_to_end: get_current_time() + 60000000000, // Plus 1 minutes
+                            time_to_end: get_current_time() + 45000000000, // Plus 45 seconds
                             start_price: 0.0,
                             max_price_diff_neg: 100.0,
                             max_price_diff_pos: 0.0,
@@ -420,17 +425,6 @@ async fn send_futures_order(
     z_score: f64,
 ) -> Result<(), reqwest::Error> {
 
-    let api_key = env::var("BINANCE_API_KEY").expect("API_KEY not set");
-    let api_secret = env::var("BINANCE_API_SECRET").expect("API_SECRET not set");
-    
-    // To change leverage
-    let leverage_result = change_leverage(&symbol, leverage).await;
-
-    if let Err(e) = leverage_result {
-        eprintln!("Failed to change leverage: {}", e);
-        return Err(e);
-    }
-
     let opposite_side = if side == "BUY" { "SELL" } else { "BUY" };
 
     let quantity_precision = match SYMBOLS_INFO.get(&symbol) {
@@ -438,42 +432,36 @@ async fn send_futures_order(
         None => 4, // Default value if the symbol is not found
     };
 
-    println!("> send_futures_order: Current Time: {}", get_current_time());
-    println!("> send_futures_order: Quantity Percision: {}", quantity_precision);
-
     let symbol_amount = round((quantity / price)*leverage as f64, quantity_precision);
-
-    println!("> send_futures_order: symbol_amount: {}", symbol_amount);
-    
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
 
     // Limit order
-    // let params = format!(
-    //     "symbol={}&side={}&type={}&quantity={}&price={}&timeInForce=GTC&timestamp={}",
-    //     symbol, side, type_, symbol_amount, price, timestamp
-    // );
-
     let params = format!(
-        "symbol={}&side={}&type=MARKET&quantity={}&timestamp={}",
-        symbol, side, symbol_amount, timestamp
+        "symbol={}&side={}&type={}&quantity={}&price={}&timeInForce=GTC&timestamp={}",
+        symbol, side, type_, symbol_amount, price, timestamp
     );
 
-    submit_trade(&params).await;
+    // Market Order
+    // let params = format!(
+    //     "symbol={}&side={}&type=MARKET&quantity={}&timestamp={}",
+    //     symbol, side, symbol_amount, timestamp
+    // );
 
+    submit_trade(&params).await;
 
     let stop_loss_params = format!(
         "symbol={}&side={}&type=STOP_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
         symbol, opposite_side, symbol_amount, stop_loss_price, timestamp
     );
+
     submit_trade(&stop_loss_params).await;
 
+    let take_profit_params = format!(
+        "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
+        symbol, opposite_side, symbol_amount, take_profit_price, timestamp
+    );
 
-    // let take_profit_params = format!(
-    //     "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
-    //     symbol, opposite_side, symbol_amount, take_profit_price, timestamp
-    // );
-    // submit_trade(&take_profit_params).await;
-
+    submit_trade(&take_profit_params).await;
 
     let binance_trade_info = BinanceTradeInfo {
         news_id: news_id.to_string(),
@@ -546,11 +534,11 @@ async fn submit_trade(params: &str) -> Result<(), reqwest::Error>{
     let response = client.post(&url).headers(headers).send().await?;
     
     if response.status().is_success() {
-        println!("> submit_trade: Order placed successfully");
+        log_print("INFO", "> submit_trade: Order placed successfully");
     } else {
         // The request failed, print the error message
         let error_text = response.text().await?;
-        println!("> submit_trade: Error: {}", error_text);
+        log_print("ERROR", format!("send_futures_order: > Sent trade: {}", error_text).as_str() );
     }
 
     Ok(())
