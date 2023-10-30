@@ -98,18 +98,45 @@ class RetriveDataset():
                 # Add feature types here:
                 if feature_type == "zscore":
                     for column in feature["columns"]:
-                        needed_columns.append(f"{column}_{feature_type}")
+                        dataset_column = f"{column}_{feature_type}"
+                        needed_columns.append(dataset_column)
                         # Build new column if doesn't exist 
-                        if f"{column}_{feature_type}" not in trading_dataset_df.columns:
-                            trading_dataset_df = self.add_zscore(column, trading_dataset_df)
-                            added_column = True
+                        # if dataset_column not in trading_dataset_df.columns:
+                        trading_dataset_df = self.add_zscore(column, trading_dataset_df)
+                        added_column = True
                 
                 if feature_type == "news_signal":
-                    needed_columns.append("news_signal")
+                    dataset_column = "news_signal"
+                    needed_columns.append(dataset_column)
 
-                    if feature_type not in trading_dataset_df.columns:
+                    if dataset_column not in trading_dataset_df.columns:
                         trading_dataset_df = self.add_news_signals(trading_dataset_df)
                         added_column = True
+
+                if feature_type == "future_diff":
+                    for period in feature["periods"]:
+                        for column in feature["columns"]:
+                            dataset_column = f"{column}_{feature_type}_{period}"
+                            needed_columns.append(dataset_column)
+
+                            if dataset_column not in trading_dataset_df.columns:
+                                trading_dataset_df[dataset_column] = -round(trading_dataset_df[column].pct_change(periods=-period), 4)
+                                added_column = True
+                
+                if feature_type == "moving_average":
+                    for period in feature["periods"]:
+                        for column in feature["columns"]:
+                            dataset_column = f"{column}_{feature_type}_MA_{period}"
+                            needed_columns.append(dataset_column)
+                            # print(dataset_column)
+                            # print(trading_dataset_df[column].rolling(period))
+                            # print(round(trading_dataset_df[column].fillna(0).rolling(period).mean(), 2))
+                            # print(len(trading_dataset_df[column].rolling(period).mean().value_counts()))
+                            # exit()
+                            # if dataset_column not in trading_dataset_df.columns:
+                            trading_dataset_df[dataset_column] = round(trading_dataset_df[column].fillna(0).rolling(period).mean(), 2)
+                            added_column = True
+
 
             if added_column:
                 self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
@@ -245,14 +272,15 @@ class RetriveDataset():
         return df
 
 
-    def add_zscore(self, column, df):
-        print("> Adding column-wise z-scores...")
+    def add_zscore(self, column, df, window='1H'):
+        print(f"> Adding column-wise z-scores for {column}...")
 
         # Compute means and standard deviations
-        col_mean = df[column].mean()
-        col_std = df[column].std()
+        # Compute rolling means and standard deviations
+        rolling_mean = df[column].fillna(0).rolling(window=window).mean().shift(1)
+        rolling_std = df[column].fillna(0).rolling(window=window).std().shift(1)
         
-        df[f'{column}_zscore'] = (df[column] - col_mean) / col_std
+        df[f'{column}_zscore'] = round((df[column] - rolling_mean) / rolling_std, 2)
 
         return df
 

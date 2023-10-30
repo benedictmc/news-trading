@@ -25,10 +25,14 @@ def plot_data(df, symbol, add_marker=None, marker_title=None, signal_to_plot=Non
 
     # Add marker if provided
     if add_marker:
+        if type(add_marker) not in [pd.core.indexes.datetimes.DatetimeIndex, pd._libs.tslibs.timestamps.Timestamp]:
+            raise Exception("Error: Marker is not a datetime index")
+        
         marker_price = df.loc[add_marker, 'avg_price']
+
         plt.scatter(add_marker, marker_price, color='red', marker='o', s=40)
         if marker_title:
-            plt.annotate(marker_title, (add_marker, marker_price), textcoords="offset points", xytext=(0,10), ha='center')
+            plt.annotate(marker_title, (add_marker, marker_price), textcoords="offset points", xytext=(0,10), ha='right')
 
 
     plt.xlabel('Time')
@@ -49,9 +53,11 @@ def plot_data(df, symbol, add_marker=None, marker_title=None, signal_to_plot=Non
 
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
-
-    filepath = f'{results_folder}/avg_price.png'
-    # print(f"Saving plot to {filepath}")
+    title_clean = title.replace(" ", "_")
+    
+    filepath = f'{results_folder}/{title_clean}.png'
+    print(f"Saving plot to {filepath}")
+    
     plt.savefig(filepath)
     plt.close()
     
