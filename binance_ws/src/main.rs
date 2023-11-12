@@ -47,6 +47,7 @@ async fn main(){
     let symbol_trade_infos = Arc::new(Mutex::new(HashMap::new()));
     let symbol_trade_stats = Arc::new(Mutex::new(HashMap::new()));
     let news_event_log = Arc::new(Mutex::new(HashMap::new()));
+    let binance_trade_infos = Arc::new(Mutex::new(Vec::new()));
 
     for (symbol, _) in SYMBOLS_INFO.entries() {
 
@@ -57,6 +58,7 @@ async fn main(){
     tokio::spawn(log_health_check());
     tokio::spawn(focus_new_event_log(news_event_log.clone(), symbol_trade_infos.clone(), symbol_trade_stats.clone()));
     tokio::spawn(calculate_averages(symbol_trade_infos.clone(), symbol_trade_stats.clone()));
+    tokio::spawn(check_exit_criteria(binance_trade_infos.clone(), symbol_trade_infos.clone()));
     tokio::join!(run_binance_websocket(symbol_trade_infos.clone()), run_treeofalpha_websocket(news_event_log.clone()));
 }
 
@@ -119,7 +121,6 @@ async fn run_binance_websocket(symbol_trade_infos: Arc<Mutex<HashMap<String, Tra
         }
     }
 }
-
 
 async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>) {
     let url = Url::parse("wss://news.treeofalpha.com/ws").unwrap();
@@ -226,7 +227,11 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
     }
 }
 
-async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>, symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>, symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>) {
+async fn focus_new_event_log(
+    news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>,
+    symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>,
+    symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>
+) {
     let mut interval = tokio::time::interval(Duration::from_millis(500));
     let mut locked_symbols: HashMap<String, u128> = HashMap::new();
 
@@ -282,10 +287,9 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
 
                     let total_zscore = news_event.amount_of_buys_z_score + news_event.amount_of_sells_z_score + news_event.volume_sold_z_score + news_event.volume_bought_z_score;
                     news_event.total_z_score = f64::max(news_event.total_z_score, total_zscore.clone());
-
-                    if total_zscore > 100.0{
-                        
-
+                    
+                    // Entry Signal
+                    if news_event.volume_sold_z_score > 100.0{
                         match locked_symbols.get(binance_symbol) {
                             Some(&timestamp) => {
                                 if current_time > timestamp {
@@ -310,7 +314,7 @@ async fn focus_new_event_log(news_event_log: Arc<Mutex<HashMap<String, NewsEvent
 
                         println!("> focus_new_event_log: Precision of {}: {}", &binance_symbol, price_precision);
 
-                        let trade_price = round( latest_trade_info.total_price / latest_trade_info.count as f64, price_precision);
+                        let trade_price = round(latest_trade_info.total_price / latest_trade_info.count as f64, price_precision);
                         
                         let trade_direction = if trade_price < news_event.start_price { "SELL" } else { "BUY" };
                         
@@ -385,6 +389,23 @@ async fn process_suggestions(suggestions: &[Suggestion], news_event_log: &Arc<Mu
     }
 }
 
+async fn check_exit_criteria(binance_trade_infos: Arc<Mutex<Vec<BinanceTradeInfo>>>, symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>) {
+    // Check if the trade has been open for 30 minutes
+    // If it has, close the trade
+    let mut interval = tokio::time::interval(Duration::from_millis(5000));
+
+    loop {
+        interval.tick().await;
+        let mut binance_trade_infos_lock = binance_trade_infos.lock().await;
+
+        for trade_info in binance_trade_infos_lock.iter() {
+            println!("> check_exit_criteria: Checking exit criteria for {}", trade_info.symbol);
+
+        }
+
+        drop(binance_trade_infos_lock);
+    }
+}
 
 //  Helper functions
 fn round(x: f64, decimals: u32) -> f64 {

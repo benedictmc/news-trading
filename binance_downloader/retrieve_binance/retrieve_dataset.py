@@ -7,7 +7,7 @@ import io
 from retrieve_binance.agg_trades_downloader import retrieve_agg_trades
 from retrieve_binance.retrieve_news import GetCryptoNews
 import numpy as np
-
+import json
 
 load_dotenv()
 
@@ -17,6 +17,7 @@ BLOB_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 BLOB_SERVICE_CLIENT = BlobServiceClient.from_connection_string(BLOB_CONNECTION_STRING)
 ACCOUNT_KEY = os.environ['AZURE_STORAGE_ACCOUNT_KEY']
 ACCOUNT_URL = os.environ['AZURE_STORAGE_ACCOUNT_URL']
+LOCAL_LOCATION = os.environ['LOCAL_LOCATION']
 
 
 # Example config
@@ -67,6 +68,9 @@ class RetriveDataset():
         self.agg_trades_filepath = f"aggTrades/{self.interval}/{symbol}/{symbol}-aggTrades-{date}.csv"
         self.local_trading_dataset_filepath = f"local/data/{self.symbol}/trading_dataset_{self.date}.csv"
         self.trading_dataset_filepath = f"trading_datasets/{self.symbol}/trading_dataset_{self.date}.csv"
+
+        with open(f"{LOCAL_LOCATION}/recompile_zscore.json", "r") as f:
+            self.recompile_zscore = json.load(f)
     
     
     def retrieve_trading_dataset(self):
@@ -101,9 +105,10 @@ class RetriveDataset():
                         dataset_column = f"{column}_{feature_type}"
                         needed_columns.append(dataset_column)
                         # Build new column if doesn't exist 
-                        # if dataset_column not in trading_dataset_df.columns:
-                        trading_dataset_df = self.add_zscore(column, trading_dataset_df)
-                        added_column = True
+                        if dataset_column not in trading_dataset_df.columns or self.symbol not in self.recompile_zscore:
+                            trading_dataset_df = self.add_zscore(column, trading_dataset_df)    
+                            added_column = True
+
                 
                 if feature_type == "news_signal":
                     dataset_column = "news_signal"
@@ -128,27 +133,40 @@ class RetriveDataset():
                         for column in feature["columns"]:
                             dataset_column = f"{column}_{feature_type}_MA_{period}"
                             needed_columns.append(dataset_column)
-                            # print(dataset_column)
-                            # print(trading_dataset_df[column].rolling(period))
-                            # print(round(trading_dataset_df[column].fillna(0).rolling(period).mean(), 2))
-                            # print(len(trading_dataset_df[column].rolling(period).mean().value_counts()))
-                            # exit()
-                            # if dataset_column not in trading_dataset_df.columns:
-                            trading_dataset_df[dataset_column] = round(trading_dataset_df[column].fillna(0).rolling(period).mean(), 2)
-                            added_column = True
 
+                            if dataset_column not in trading_dataset_df.columns:
+                                trading_dataset_df[dataset_column] = round(trading_dataset_df[column].fillna(0).rolling(period).mean(), 2)
+                                added_column = True
+
+                if feature_type == "ratio":
+                    dataset_column = feature["column_name"]
+                    needed_columns.append(dataset_column)
+
+                    if dataset_column not in trading_dataset_df.columns:
+                        print(f"> Adding ratio column {dataset_column}")
+                        numerator = feature["columns"][0]
+                        denominator = feature["columns"][1]
+                        trading_dataset_df[dataset_column] = round(trading_dataset_df[numerator] / trading_dataset_df[denominator], 6)
+                        added_column = True
+                    
 
             if added_column:
                 self.__save_to_blob(trading_dataset_df, self.trading_dataset_filepath)
 
-        if "signal" in self.config:
-            trading_dataset_df = self.add_signal(trading_dataset_df, self.config["signal"])
+        if "signal_function" in self.config:
+            singal_func = self.config["signal_function"]
+            trading_dataset_df = singal_func(trading_dataset_df)
             needed_columns.append("signal")
 
         trading_dataset_df = trading_dataset_df[needed_columns]
         
         trading_dataset_df.replace([float('inf'), float('-inf'), float('nan')], 0, inplace=True)
         trading_dataset_df.index = pd.to_datetime(trading_dataset_df.index)
+
+        self.recompile_zscore.append(self.symbol)
+
+        with open(f"{LOCAL_LOCATION}/recompile_zscore.json", "w") as f:
+            json.dump(self.recompile_zscore, f)
 
         return trading_dataset_df
     
