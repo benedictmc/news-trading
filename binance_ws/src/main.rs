@@ -56,9 +56,9 @@ async fn main(){
     }
 
     tokio::spawn(log_health_check());
-    tokio::spawn(focus_new_event_log(news_event_log.clone(), symbol_trade_infos.clone(), symbol_trade_stats.clone()));
+    tokio::spawn(focus_new_event_log(news_event_log.clone(), symbol_trade_infos.clone(), symbol_trade_stats.clone(), binance_trade_infos.clone()));
     tokio::spawn(calculate_averages(symbol_trade_infos.clone(), symbol_trade_stats.clone()));
-    tokio::spawn(check_exit_criteria(binance_trade_infos.clone(), symbol_trade_infos.clone()));
+    tokio::spawn(check_exit_criteria(binance_trade_infos.clone(), symbol_trade_infos.clone(), symbol_trade_stats.clone()));
     tokio::join!(run_binance_websocket(symbol_trade_infos.clone()), run_treeofalpha_websocket(news_event_log.clone()));
 }
 
@@ -143,20 +143,21 @@ async fn run_treeofalpha_websocket(news_event_log: Arc<Mutex<HashMap<String, New
                                         Ok(news_message) => {
                                             log_print("INFO", format!("TreeOfAlphaNews: {:?}", news_message).as_str());
 
+                                            println!("> treeofalpha: News event title {}", news_message.title);
                                             process_suggestions(&news_message.suggestions, &news_event_log, &news_message.title, &news_message._id).await;
                                         },
                                         Err(_) => {
                                             match serde_json::from_str::<TreeOfAlphaNewsVariation>(&text) {
                                                 Ok(news_variation_message) => {
                                                     log_print("INFO", format!("TreeOfAlphaNewsVariation: {:?}", news_variation_message).as_str());
-
+                                                    println!("> treeofalpha: News event title {}", news_variation_message.title);
                                                     process_suggestions(&news_variation_message.suggestions, &news_event_log, &news_variation_message.title, &news_variation_message._id).await;
                                                 },
                                                 Err(_) => {
                                                     match serde_json::from_str::<TreeOfAlphaTweet>(&text) {
                                                         Ok(tweet_message) => {
                                                             log_print("INFO", format!("TreeOfAlphaTweet: {:?}", tweet_message).as_str());
-
+                                                            println!("> treeofalpha: News event title {}", tweet_message.title);
                                                             process_suggestions(&tweet_message.suggestions, &news_event_log, &tweet_message.body, &tweet_message._id).await;
                                                         },
                                                         Err(e) => {
@@ -206,7 +207,7 @@ async fn log_health_check() {
 }
 
 async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>, symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>) {
-    let mut interval = tokio::time::interval(Duration::from_secs(5));
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
 
     loop {
         interval.tick().await;
@@ -221,6 +222,11 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
                 trade_stats.amount_of_sells.update(trade_info.amount_of_sells);
                 trade_stats.volume_sold.update(trade_info.volume_sold);
                 trade_stats.volume_bought.update(trade_info.volume_bought);
+
+                trade_stats.prev_second_volume_sold = trade_info.volume_sold;
+                trade_stats.prev_second_volume_bought = trade_info.volume_bought;
+                // println!("> calculate_averages: symbol: {}", symbol);
+                // println!("> calculate_averages: prev_second_volume_sold: {}", trade_stats.prev_second_volume_sold);
             }
         }
         symbol_trade_infos_lock.values_mut().for_each(|info| *info = TradeInfo::default());
@@ -230,14 +236,14 @@ async fn calculate_averages(symbol_trade_infos: Arc<Mutex<HashMap<String, TradeI
 async fn focus_new_event_log(
     news_event_log: Arc<Mutex<HashMap<String, NewsEvent>>>,
     symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>,
-    symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>
+    symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>,
+    binance_trade_infos: Arc<Mutex<Vec<BinanceTradeInfo>>>
 ) {
     let mut interval = tokio::time::interval(Duration::from_millis(500));
     let mut locked_symbols: HashMap<String, u128> = HashMap::new();
 
     loop {
         interval.tick().await;
-
         let mut news_event_log_lock = news_event_log.lock().await;
 
         if news_event_log_lock.is_empty() {
@@ -249,6 +255,7 @@ async fn focus_new_event_log(
         let current_time = get_current_time();
 
         for (binance_symbol, news_event) in news_event_log_lock.iter_mut() {
+            println!("> focus_new_event_log: Checking news event log for {}", binance_symbol);
 
             if news_event.time_to_end < current_time {
                 events_to_remove.push(binance_symbol.clone());
@@ -289,7 +296,7 @@ async fn focus_new_event_log(
                     news_event.total_z_score = f64::max(news_event.total_z_score, total_zscore.clone());
                     
                     // Entry Signal
-                    if news_event.volume_sold_z_score > 100.0{
+                    if news_event.volume_sold_z_score > -10.0{
                         match locked_symbols.get(binance_symbol) {
                             Some(&timestamp) => {
                                 if current_time > timestamp {
@@ -304,7 +311,6 @@ async fn focus_new_event_log(
                         println!("*******");
                         println!("> focus_new_event_log: binance_symbol: {}", binance_symbol);
                         println!("> focus_new_event_log: News event title {}", news_event.news_title);
-                        println!("> focus_new_event_log: GOING TO TRADE!!");
                         println!("> focus_new_event_log: Time is {}", get_current_time());
 
                         let price_precision = match SYMBOLS_INFO.get(&binance_symbol) {
@@ -329,11 +335,28 @@ async fn focus_new_event_log(
                         
 
                         let buy_price = round(trade_price * 1.0025, price_precision);
-
-                        send_futures_order(binance_symbol, trade_direction, "LIMIT",  350.0, buy_price, 10, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await;
-                        let timestamp = get_current_time() + 1800000000000; // Plus 30 minutes
                         
-                        locked_symbols.insert(binance_symbol.clone(), timestamp);
+                        // Sends trade order
+                        match send_futures_order(binance_symbol, trade_direction, "LIMIT", 350.0, buy_price, 10, sl_price, tp_price, news_event.news_id.as_str(), total_zscore).await {
+                            Ok(trade_info) => {
+                                // Order Successfully sent
+                                let mut trade_infos = binance_trade_infos.lock().await;
+                                trade_infos.push(trade_info);
+                                
+                                let timestamp = get_current_time() + 1800000000000; // Plus 30 minutes
+
+                                locked_symbols.insert(binance_symbol.clone(), timestamp);
+                            },
+                            Err(e) => {
+                                // Failed to send order
+                                eprintln!("Error sending futures order: {:?}", e);
+                            }
+                        }
+
+                        // Removing monitor for event
+                        events_to_remove.push(binance_symbol.clone());
+
+                        
                     }
                 }
             }
@@ -345,12 +368,15 @@ async fn focus_new_event_log(
         for key in events_to_remove {
 
             if let Some(news_event) = news_event_log_lock.get_mut(&key){
-                println!("> focus_new_event_log: Saving news event to file");
+                println!("> focus_new_event_log: News event done. Removing from monitor");
                 log_print("INFO", format!("news_event: {:?}", news_event).as_str());
                 // save_news_event_to_file(news_event).await;
             }
             news_event_log_lock.remove(&key);
         }
+
+        
+
     }
 }
 
@@ -381,6 +407,7 @@ async fn process_suggestions(suggestions: &[Suggestion], news_event_log: &Arc<Mu
                             total_z_score: 0.0,
                             news_id: news_id.to_string(),
                         };
+                        println!("> process_suggestions: Adding news event to log");
                         lock.insert(binance_symbol, news_event);
                     }
                 }
@@ -389,17 +416,42 @@ async fn process_suggestions(suggestions: &[Suggestion], news_event_log: &Arc<Mu
     }
 }
 
-async fn check_exit_criteria(binance_trade_infos: Arc<Mutex<Vec<BinanceTradeInfo>>>, symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>) {
+async fn check_exit_criteria(
+    binance_trade_infos: Arc<Mutex<Vec<BinanceTradeInfo>>>,
+    symbol_trade_infos: Arc<Mutex<HashMap<String, TradeInfo>>>, 
+    symbol_trade_stats: Arc<Mutex<HashMap<String, TradeStats>>>
+) {
     // Check if the trade has been open for 30 minutes
     // If it has, close the trade
-    let mut interval = tokio::time::interval(Duration::from_millis(5000));
+    let mut interval = tokio::time::interval(Duration::from_millis(50));
 
     loop {
         interval.tick().await;
         let mut binance_trade_infos_lock = binance_trade_infos.lock().await;
+        // println!("> check_exit_criteria: Checking exit criteria");
+        for binance_trade_info in binance_trade_infos_lock.iter() {
+            let binance_symbol = binance_trade_info.symbol.clone();
+            println!("> check_exit_criteria: Checking exit criteria for {}", binance_symbol);
+            
+            let symbol_trade_infos_lock = symbol_trade_infos.lock().await;
 
-        for trade_info in binance_trade_infos_lock.iter() {
-            println!("> check_exit_criteria: Checking exit criteria for {}", trade_info.symbol);
+            if let Some(latest_trade_info) = symbol_trade_infos_lock.get(&binance_symbol) {
+
+                let mut trade_stats_lock = symbol_trade_stats.lock().await;
+
+                if let Some(trade_stats) = trade_stats_lock.get_mut(&binance_symbol) {
+                    let last_second_volume_sold = trade_stats.prev_second_volume_sold;
+                    let last_second_volume_bought = trade_stats.prev_second_volume_bought;
+
+                    let current_price = latest_trade_info.total_price / latest_trade_info.count as f64;
+
+                    let bought_sold_ratio = 0.0;
+
+                    
+                    println!("> check_exit_criteria: Current price is {}", current_price);
+
+                }
+            }
 
         }
 
@@ -444,7 +496,7 @@ async fn send_futures_order(
     take_profit_price: f64,
     news_id: &str,
     z_score: f64,
-) -> Result<(), reqwest::Error> {
+) -> Result<BinanceTradeInfo, reqwest::Error> {
 
     let opposite_side = if side == "BUY" { "SELL" } else { "BUY" };
 
@@ -467,22 +519,23 @@ async fn send_futures_order(
     //     "symbol={}&side={}&type=MARKET&quantity={}&timestamp={}",
     //     symbol, side, symbol_amount, timestamp
     // );
-
-    submit_trade(&params).await;
+    
+    // TEMP NOT SENDING ORDERS
+    // submit_trade(&params).await;
 
     let stop_loss_params = format!(
         "symbol={}&side={}&type=STOP_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
         symbol, opposite_side, symbol_amount, stop_loss_price, timestamp
     );
 
-    submit_trade(&stop_loss_params).await;
+    // submit_trade(&stop_loss_params).await;
 
     let take_profit_params = format!(
         "symbol={}&side={}&type=TAKE_PROFIT_MARKET&quantity={:.2}&stopPrice={:.2}&timeInForce=GTC&timestamp={}",
         symbol, opposite_side, symbol_amount, take_profit_price, timestamp
     );
 
-    submit_trade(&take_profit_params).await;
+    // submit_trade(&take_profit_params).await;
 
     let binance_trade_info = BinanceTradeInfo {
         news_id: news_id.to_string(),
@@ -494,11 +547,12 @@ async fn send_futures_order(
         leverage: leverage,
         stop_loss_price: stop_loss_price,
         take_profit_price: take_profit_price,
+        time_created: timestamp,
     };
 
     log_print("INFO", format!("send_futures_order: > Sent trade: {:?}", binance_trade_info).as_str());
 
-    Ok(())
+    Ok(binance_trade_info)
 }
 
 

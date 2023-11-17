@@ -192,6 +192,8 @@ pub struct TradeStats {
     pub amount_of_sells: StatsModel,
     pub volume_bought: StatsModel,
     pub amount_of_buys: StatsModel,
+    pub prev_second_volume_sold: f64,
+    pub prev_second_volume_bought: f64,
 }
 
 impl Default for TradeStats {
@@ -201,6 +203,8 @@ impl Default for TradeStats {
             amount_of_sells: StatsModel::new(),
             volume_bought: StatsModel::new(),
             amount_of_buys: StatsModel::new(),
+            prev_second_volume_sold: 0.0,
+            prev_second_volume_bought: 0.0,
         }
     }
 }
@@ -246,6 +250,7 @@ pub struct BinanceTradeInfo {
     pub leverage: i32,
     pub stop_loss_price: f64,
     pub take_profit_price: f64,
+    pub time_created: u128,
 }
 
 

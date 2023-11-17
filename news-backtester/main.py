@@ -391,7 +391,7 @@ num_trade_ema_spans = [2]
 buy_sold_ratios = [1]
 
 # buy_sold_ratios = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 2]
-date = "2023-10"
+date = "2023-09"
 
 for symbol in symbols:
     already_ran = False
